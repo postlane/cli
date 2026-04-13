@@ -1,5 +1,5 @@
 {
-  "name": "postlane",
+  "name": "@postlane/cli",
   "version": "0.0.1",
   "description": "Postlane CLI - coming soon",
   "license": "BUSL-1.1",
