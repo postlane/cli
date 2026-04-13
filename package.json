@@ -1,0 +1,25 @@
+{
+  "name": "postlane",
+  "version": "0.0.1",
+  "description": "Postlane CLI - coming soon",
+  "license": "BUSL-1.1",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "bin": {
+    "postlane": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "bundled-skills"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
