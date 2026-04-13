@@ -1,0 +1,13 @@
+# Postlane .gitignore template
+# This file is copied into user repos by `postlane init`
+
+# Runner dependencies and build output
+runner/node_modules/
+runner/dist/
+
+# LLM original drafts — not for public commit history
+posts/**/original.json
+
+# Posts are committed to Git by default
+# If you want to keep posts out of version control, uncomment the line below:
+# posts/
