@@ -2,15 +2,22 @@
 import { describe, it, expect } from 'vitest';
 import { execSync } from 'child_process';
 
-describe('postlane CLI placeholder', () => {
-  it('should print "Postlane CLI coming soon." to stdout', () => {
-    const output = execSync('node dist/index.js', { encoding: 'utf-8' });
-    expect(output.trim()).toBe('Postlane CLI coming soon.');
+describe('postlane CLI', () => {
+  it('should show help when run without arguments', () => {
+    try {
+      execSync('node dist/index.js', { encoding: 'utf-8' });
+    } catch (error: any) {
+      // Commander exits with 1 when showing help
+      const output = error.stderr || error.stdout;
+      expect(output).toContain('Postlane CLI - Social media post scheduling');
+      expect(output).toContain('Commands:');
+      expect(output).toContain('init');
+      expect(output).toContain('register');
+    }
   });
 
-  it('should exit with code 0', () => {
-    const result = execSync('node dist/index.js; echo $?', { encoding: 'utf-8' });
-    const exitCode = result.trim().split('\n').pop();
-    expect(exitCode).toBe('0');
+  it('should show version with --version flag', () => {
+    const output = execSync('node dist/index.js --version', { encoding: 'utf-8' });
+    expect(output.trim()).toBe('0.0.1');
   });
 });
