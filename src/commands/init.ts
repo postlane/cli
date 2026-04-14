@@ -7,6 +7,7 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { askSetupQuestions } from '../utils/questions.js';
 import { writeConfigFiles, checkPartialInit, repairPartialInit } from '../utils/files.js';
+import { registerCommand } from './register.js';
 
 interface InitOptions {
   defaults?: boolean;
@@ -111,11 +112,14 @@ export async function initCommand(options: InitOptions) {
     writeConfigFiles(targetDir, answers);
 
     console.log(chalk.green('\n✓ Setup complete!'));
-    console.log(chalk.gray('Invoke /draft-post in your IDE to draft your first post.'));
+
+    // Step 9: Automatically call postlane register
+    console.log(chalk.blue('\nRegistering with Postlane app...'));
+    await registerCommand();
+
+    console.log(chalk.gray('\nInvoke /draft-post in your IDE to draft your first post.'));
     console.log(chalk.gray(`API keys go in Postlane's Settings panel, not config.json.`));
     console.log(chalk.gray('postlane.dev/docs/credentials'));
-
-    // TODO: Automatically call `postlane register` (step 9 from checklist)
   } catch (error) {
     console.error(chalk.red('Setup failed:'), error);
     process.exit(1);
