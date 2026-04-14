@@ -42,13 +42,21 @@ describe('Build process', () => {
     expect(existsSync(join(bundledSkillsDir, 'preview-template.html'))).toBe(true);
   });
 
-  it('should fail with clear error if prompts repo is not present', () => {
+  it('should warn but not fail if prompts repo is not present', () => {
     // Remove prompts directory
     rmSync(join(__dirname, '../../prompts'), { recursive: true, force: true });
 
-    // Expect prebuild to fail with helpful error
-    expect(() => {
-      execSync('npm run prebuild', { cwd: join(__dirname, '..'), stdio: 'pipe' });
-    }).toThrow();
+    // Prebuild should succeed with warning (needed for CI where prompts is not available)
+    const result = execSync('npm run prebuild', {
+      cwd: join(__dirname, '..'),
+      encoding: 'utf-8',
+    });
+
+    // Should contain warning message
+    expect(result).toContain('WARNING');
+    expect(result).toContain('prompts repo not found');
+
+    // bundled-skills should not be created if prompts is missing
+    expect(existsSync(bundledSkillsDir)).toBe(false);
   });
 });
