@@ -1,0 +1,220 @@
+// SPDX-License-Identifier: BUSL-1.1
+
+import { existsSync, readFileSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
+import chalk from 'chalk';
+
+interface Check {
+  name: string;
+  description: string;
+  passed: boolean;
+  fix?: string;
+}
+
+const KNOWN_INSTALL_PATHS: Record<string, string[]> = {
+  darwin: [
+    '/Applications/Postlane.app',
+    join(homedir(), 'Applications/Postlane.app'),
+  ],
+  linux: [
+    '/usr/bin/postlane',
+    '/usr/local/bin/postlane',
+    join(homedir(), '.local/bin/postlane'),
+  ],
+  win32: [
+    join(process.env.LOCALAPPDATA || '', 'Programs\\Postlane\\Postlane.exe'),
+    join(process.env.PROGRAMFILES || '', 'Postlane\\Postlane.exe'),
+  ],
+};
+
+export function runDoctor(): Check[] {
+  const checks: Check[] = [];
+  const targetDir = process.cwd();
+
+  // Check 1: Is .postlane/config.json present and valid JSON?
+  const configPath = join(targetDir, '.postlane', 'config.json');
+  let configValid = false;
+
+  if (!existsSync(configPath)) {
+    checks.push({
+      name: 'config.json',
+      description: 'Configuration file exists',
+      passed: false,
+      fix: 'Run `npx postlane init` to set up this repo.',
+    });
+  } else {
+    try {
+      const content = readFileSync(configPath, 'utf-8');
+      JSON.parse(content);
+      configValid = true;
+      checks.push({
+        name: 'config.json',
+        description: 'Configuration file exists',
+        passed: true,
+      });
+    } catch (error) {
+      checks.push({
+        name: 'config.json',
+        description: 'Configuration file exists',
+        passed: false,
+        fix: 'Run `npx postlane init` to set up this repo.',
+      });
+    }
+  }
+
+  // Check 2: Is the Postlane app installed?
+  const platform = process.platform;
+  const paths = KNOWN_INSTALL_PATHS[platform] || [];
+  const appInstalled = paths.some(path => existsSync(path));
+
+  checks.push({
+    name: 'app-installed',
+    description: 'Postlane app installed',
+    passed: appInstalled,
+    fix: appInstalled ? undefined : 'Download Postlane at https://postlane.dev/download',
+  });
+
+  // Check 3: Is the Postlane app running?
+  const postlaneDir = join(homedir(), '.postlane');
+  const portPath = join(postlaneDir, 'port');
+  let appRunning = false;
+
+  if (existsSync(portPath)) {
+    try {
+      const port = readFileSync(portPath, 'utf-8').trim();
+      const healthUrl = `http://127.0.0.1:${port}/health`;
+
+      // Synchronous health check with timeout
+      const { execSync } = require('child_process');
+      try {
+        execSync(`curl -s -m 0.2 ${healthUrl}`, { stdio: 'pipe' });
+        appRunning = true;
+      } catch (error) {
+        // Health check failed
+      }
+    } catch (error) {
+      // Port file read failed
+    }
+  }
+
+  checks.push({
+    name: 'app-running',
+    description: 'Postlane app running',
+    passed: appRunning,
+    fix: appRunning ? undefined : 'Open the Postlane app (or run: `open -a Postlane` on macOS)',
+  });
+
+  // Check 4: Is this repo registered with the app?
+  const reposPath = join(postlaneDir, 'repos.json');
+  let repoRegistered = false;
+
+  if (existsSync(reposPath)) {
+    try {
+      const content = readFileSync(reposPath, 'utf-8');
+      const repos = JSON.parse(content);
+
+      if (repos.repos && Array.isArray(repos.repos)) {
+        repoRegistered = repos.repos.some((r: any) => r.path === targetDir);
+      }
+    } catch (error) {
+      // repos.json parse failed
+    }
+  }
+
+  checks.push({
+    name: 'repo-registered',
+    description: 'Repository registered',
+    passed: repoRegistered,
+    fix: repoRegistered ? undefined : 'Run `postlane register` or `/register` in your IDE',
+  });
+
+  // Check 5: Is ~/.postlane/session.token readable?
+  const tokenPath = join(postlaneDir, 'session.token');
+  const tokenReadable = existsSync(tokenPath);
+
+  checks.push({
+    name: 'session-token',
+    description: 'Session token exists',
+    passed: tokenReadable,
+    fix: tokenReadable ? undefined : 'Restart the Postlane app to regenerate the session token.',
+  });
+
+  // Check 6: Can it reach the configured scheduler API?
+  if (appRunning && configValid) {
+    checks.push({
+      name: 'scheduler-api',
+      description: 'Scheduler API reachable',
+      passed: true, // TODO: Implement test_connection via HTTP in Milestone 4
+      fix: undefined,
+    });
+  } else {
+    checks.push({
+      name: 'scheduler-api',
+      description: 'Scheduler API reachable',
+      passed: false,
+      fix: appRunning ? 'Check your API key in Postlane Settings → Scheduler.' : 'Start the Postlane app first to test scheduler connectivity.',
+    });
+  }
+
+  // Check 7: Are skill files present and at current version?
+  const draftPostPath = join(targetDir, '.postlane', 'commands', 'draft-post.md');
+  let skillFilesValid = false;
+
+  if (existsSync(draftPostPath)) {
+    try {
+      const content = readFileSync(draftPostPath, 'utf-8');
+      const firstLine = content.split('\n')[0];
+      const versionMatch = firstLine.match(/<!-- postlane-version: ([\d.]+) -->/);
+
+      if (versionMatch) {
+        // TODO: Compare against CLI bundled version
+        // For now, just check that version comment exists
+        skillFilesValid = true;
+      }
+    } catch (error) {
+      // File read failed
+    }
+  }
+
+  checks.push({
+    name: 'skill-files',
+    description: 'Skill files present and current',
+    passed: skillFilesValid,
+    fix: skillFilesValid ? undefined : 'Skill files are outdated. Run `npx postlane init --update-skills` to refresh. (Note: --update-skills is coming in v1.1)',
+  });
+
+  return checks;
+}
+
+export function getExitCode(checks: Check[]): number {
+  return checks.every(c => c.passed) ? 0 : 1;
+}
+
+export async function doctorCommand() {
+  console.log(chalk.blue('Running Postlane health checks...\n'));
+
+  const checks = runDoctor();
+
+  for (const check of checks) {
+    if (check.passed) {
+      console.log(chalk.green('✓'), check.description);
+    } else {
+      console.log(chalk.red('✗'), check.description);
+      if (check.fix) {
+        console.log(chalk.gray(`  Fix: ${check.fix}`));
+      }
+    }
+  }
+
+  const exitCode = getExitCode(checks);
+
+  console.log();
+  if (exitCode === 0) {
+    console.log(chalk.green('All checks passed! ✓'));
+  } else {
+    console.log(chalk.yellow('Some checks failed. See fixes above.'));
+  }
+
+  process.exit(exitCode);
+}

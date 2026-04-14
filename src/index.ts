@@ -4,6 +4,7 @@
 import { Command } from 'commander';
 import { initCommand } from './commands/init.js';
 import { registerCommand } from './commands/register.js';
+import { doctorCommand } from './commands/doctor.js';
 
 const program = new Command();
 
@@ -22,5 +23,10 @@ program
   .command('register')
   .description('Register this repository with the Postlane app')
   .action(registerCommand);
+
+program
+  .command('doctor')
+  .description('Run health checks for Postlane setup')
+  .action(doctorCommand);
 
 program.parse();
