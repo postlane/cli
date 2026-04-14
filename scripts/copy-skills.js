@@ -9,15 +9,11 @@ const BUNDLED_SKILLS_DIR = join(__dirname, '../bundled-skills');
 
 // Check if prompts repo exists
 if (!existsSync(PROMPTS_DIR)) {
-  console.error('ERROR: prompts repo not found at', PROMPTS_DIR);
-  console.error('The postlane/prompts repository must be cloned as a sibling directory.');
-  console.error('Expected layout:');
-  console.error('  parent-dir/');
-  console.error('    cli/');
-  console.error('    prompts/  <- required');
-  console.error('');
-  console.error('See DEVELOPMENT.md for setup instructions.');
-  process.exit(1);
+  console.warn('WARNING: prompts repo not found at', PROMPTS_DIR);
+  console.warn('Skill files will not be bundled. This is OK in CI or during early development.');
+  console.warn('For local builds, see DEVELOPMENT.md for setup instructions.');
+  console.log('Skipping skill file copy.');
+  process.exit(0);
 }
 
 // Create bundled-skills directory
@@ -48,6 +44,6 @@ for (const { src, dest } of skillFiles) {
 console.log(`Copied ${copiedCount}/${skillFiles.length} skill files to bundled-skills/`);
 
 if (copiedCount === 0) {
-  console.error('ERROR: No skill files were copied. The prompts repo may be incomplete.');
-  process.exit(1);
+  console.warn('WARNING: No skill files were copied. The prompts repo may be incomplete or empty.');
+  console.warn('This is expected during early development. Skill files will be added in later milestones.');
 }
