@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "description": "Postlane CLI - coming soon",
   "license": "BUSL-1.1",
+  "type": "module",
   "engines": {
     "node": ">=18.0.0"
   },
@@ -20,6 +21,7 @@
     "prepublishOnly": "npm run build && npm test"
   },
   "devDependencies": {
+    "@types/inquirer": "^9.0.9",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0",
     "vitest": "^1.0.0"

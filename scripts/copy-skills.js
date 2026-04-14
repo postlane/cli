@@ -1,8 +1,12 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: BUSL-1.1
 
-const { existsSync, mkdirSync, copyFileSync } = require('fs');
-const { join, dirname } = require('path');
+import { existsSync, mkdirSync, copyFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const PROMPTS_DIR = join(__dirname, '../../prompts');
 const BUNDLED_SKILLS_DIR = join(__dirname, '../bundled-skills');
