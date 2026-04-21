@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { mkdirSync, writeFileSync, existsSync, copyFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import type { SetupAnswers } from './questions.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export interface ConfigJson {
   version: number;
@@ -29,7 +32,7 @@ export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void
   mkdirSync(postlaneDir, { recursive: true });
 
   // Step 2: Write config.json
-  const config: ConfigJson = {
+  const config: ConfigJson & { attribution?: boolean } = {
     version: 1,
     base_url: answers.baseUrl,
     platforms: answers.platforms,
@@ -45,6 +48,9 @@ export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void
     style: answers.style,
     utm_campaign: answers.utmCampaign,
     author: answers.author,
+    // Only write attribution: false when user explicitly opts out.
+    // Absence of the key means enabled (default).
+    ...(answers.attribution === false && { attribution: false }),
   };
 
   writeFileSync(
@@ -66,12 +72,18 @@ posts/**/original.json
     'utf-8'
   );
 
-  // Steps 4-8: Copy bundled skill files
-  const commandsDir = join(postlaneDir, 'commands');
+  // Steps 4-8: Copy bundled skill files.
+  // .claude/commands/ — Claude Code slash commands (read by Claude Code on launch)
+  // .postlane/commands/ — Continue .prompt files and other IDE formats
+  // .postlane/prompts/ — preview template
+  // .postlane/runner/ — standalone runner
+  const claudeCommandsDir = join(targetDir, '.claude', 'commands');
+  const postlaneCommandsDir = join(postlaneDir, 'commands');
   const promptsDir = join(postlaneDir, 'prompts');
   const runnerDir = join(postlaneDir, 'runner');
 
-  mkdirSync(commandsDir, { recursive: true });
+  mkdirSync(claudeCommandsDir, { recursive: true });
+  mkdirSync(postlaneCommandsDir, { recursive: true });
   mkdirSync(promptsDir, { recursive: true });
   mkdirSync(runnerDir, { recursive: true });
 
@@ -79,12 +91,27 @@ posts/**/original.json
   const cliDir = join(__dirname, '..', '..');
   const bundledSkillsDir = join(cliDir, 'bundled-skills');
 
+  // All skill commands — base v1 + v1.1
+  const allCommands = [
+    'draft-post',
+    'register-repo',
+    'draft-changelog',
+    'draft-show-hn',
+    'draft-product-hunt',
+    'redraft-post',
+    'draft-x',
+    'draft-bluesky',
+    'draft-mastodon',
+    'draft-linkedin',
+    'draft-substack',
+  ];
+
   // Copy skill files if they exist in bundled-skills
-  const filesToCopy = [
-    { from: 'draft-post.md', to: join(commandsDir, 'draft-post.md') },
-    { from: 'draft-post.prompt', to: join(commandsDir, 'draft-post.prompt') },
-    { from: 'register-repo.md', to: join(commandsDir, 'register-repo.md') },
-    { from: 'register-repo.prompt', to: join(commandsDir, 'register-repo.prompt') },
+  const filesToCopy: Array<{ from: string; to: string }> = [
+    ...allCommands.flatMap((cmd) => [
+      { from: `${cmd}.md`, to: join(claudeCommandsDir, `${cmd}.md`) },
+      { from: `${cmd}.prompt`, to: join(postlaneCommandsDir, `${cmd}.prompt`) },
+    ]),
     { from: 'preview-template.html', to: join(promptsDir, 'preview-template.html') },
     { from: 'run.ts', to: join(runnerDir, 'run.ts') },
   ];
@@ -103,20 +130,19 @@ posts/**/original.json
 export function checkPartialInit(targetDir: string): 'complete' | 'partial' | 'none' {
   const postlaneDir = join(targetDir, '.postlane');
   const configPath = join(postlaneDir, 'config.json');
-  const commandsDir = join(postlaneDir, 'commands');
+  const claudeCommandsDir = join(targetDir, '.claude', 'commands');
 
   if (!existsSync(configPath)) {
-    // Check if .gitignore exists (very early failure)
     if (existsSync(join(postlaneDir, '.gitignore'))) {
       return 'partial';
     }
     return 'none';
   }
 
-  // config.json exists - check if skill files are present
+  // config.json exists — check if Claude Code slash commands are installed
   const requiredFiles = [
-    join(commandsDir, 'draft-post.md'),
-    join(commandsDir, 'draft-post.prompt'),
+    join(claudeCommandsDir, 'draft-post.md'),
+    join(claudeCommandsDir, 'register-repo.md'),
   ];
 
   const allFilesExist = requiredFiles.every(existsSync);
@@ -126,28 +152,43 @@ export function checkPartialInit(targetDir: string): 'complete' | 'partial' | 'n
 
 export function repairPartialInit(targetDir: string): void {
   const postlaneDir = join(targetDir, '.postlane');
-  const commandsDir = join(postlaneDir, 'commands');
+  const claudeCommandsDir = join(targetDir, '.claude', 'commands');
+  const postlaneCommandsDir = join(postlaneDir, 'commands');
   const promptsDir = join(postlaneDir, 'prompts');
   const runnerDir = join(postlaneDir, 'runner');
 
-  mkdirSync(commandsDir, { recursive: true });
+  mkdirSync(claudeCommandsDir, { recursive: true });
+  mkdirSync(postlaneCommandsDir, { recursive: true });
   mkdirSync(promptsDir, { recursive: true });
   mkdirSync(runnerDir, { recursive: true });
 
-  // Re-copy all skill files
   const cliDir = join(__dirname, '..', '..');
   const bundledSkillsDir = join(cliDir, 'bundled-skills');
 
-  const filesToCopy = [
-    { from: 'draft-post.md', to: join(commandsDir, 'draft-post.md') },
-    { from: 'draft-post.prompt', to: join(commandsDir, 'draft-post.prompt') },
-    { from: 'register-repo.md', to: join(commandsDir, 'register-repo.md') },
-    { from: 'register-repo.prompt', to: join(commandsDir, 'register-repo.prompt') },
+  const repairCommands = [
+    'draft-post',
+    'register-repo',
+    'draft-changelog',
+    'draft-show-hn',
+    'draft-product-hunt',
+    'redraft-post',
+    'draft-x',
+    'draft-bluesky',
+    'draft-mastodon',
+    'draft-linkedin',
+    'draft-substack',
+  ];
+
+  const repairFiles: Array<{ from: string; to: string }> = [
+    ...repairCommands.flatMap((cmd) => [
+      { from: `${cmd}.md`, to: join(claudeCommandsDir, `${cmd}.md`) },
+      { from: `${cmd}.prompt`, to: join(postlaneCommandsDir, `${cmd}.prompt`) },
+    ]),
     { from: 'preview-template.html', to: join(promptsDir, 'preview-template.html') },
     { from: 'run.ts', to: join(runnerDir, 'run.ts') },
   ];
 
-  for (const { from, to } of filesToCopy) {
+  for (const { from, to } of repairFiles) {
     const sourcePath = join(bundledSkillsDir, from);
     if (existsSync(sourcePath) && !existsSync(to)) {
       copyFileSync(sourcePath, to);

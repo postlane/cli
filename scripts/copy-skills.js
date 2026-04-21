@@ -30,6 +30,7 @@ const skillFiles = [
   { src: join(PROMPTS_DIR, 'commands/register-repo.md'), dest: 'register-repo.md' },
   { src: join(PROMPTS_DIR, 'commands/register-repo.prompt'), dest: 'register-repo.prompt' },
   { src: join(PROMPTS_DIR, 'preview-template.html'), dest: 'preview-template.html' },
+  { src: join(PROMPTS_DIR, 'runner/run.ts'), dest: 'run.ts' },
 ];
 
 // Copy files

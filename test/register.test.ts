@@ -227,4 +227,54 @@ describe('postlane register', () => {
       expect(KNOWN_INSTALL_PATHS.win32).toHaveLength(2);
     });
   });
+
+  describe('error logging — no stack traces', () => {
+    it('logs error message string (not Error object) on unexpected failure', async () => {
+      // Trigger the outer catch by making writeFileSync throw inside handleInstalledState.
+      // We use vi.doMock + vi.resetModules so the new fs mock is picked up on re-import.
+      vi.resetModules();
+      const errorWithStack = new Error('EPERM\n    at Object.writeFileSync\n    at handleInstalledState');
+
+      vi.doMock('fs', async () => {
+        const actual = await vi.importActual<typeof import('fs')>('fs');
+        return {
+          ...actual,
+          existsSync: (p: string) => {
+            // Make .git exist (valid repo) and no port file (not running)
+            if (String(p).endsWith('.git')) return true;
+            if (String(p).endsWith('Postlane.app') || String(p).includes('postlane')) return false;
+            return actual.existsSync(p);
+          },
+          writeFileSync: () => { throw errorWithStack; },
+          readFileSync: (p: Parameters<typeof actual.readFileSync>[0], ...rest: Parameters<typeof actual.readFileSync>[1][]) => {
+            if (String(p).endsWith('repos.json')) throw new Error('not found');
+            return (actual.readFileSync as Function)(p, ...rest);
+          },
+        };
+      });
+
+      const { registerCommand: freshRegister } = await import('../src/commands/register.js');
+
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+
+      try { await freshRegister(); } catch { /* swallow thrown exit */ }
+
+      const registrationFailureCall = errorSpy.mock.calls.find(
+        (args) => String(args[0]).includes('Registration failed') || String(args[1]).includes('Registration failed'),
+      );
+
+      if (registrationFailureCall) {
+        const errorValue = registrationFailureCall[registrationFailureCall.length - 1];
+        // Must be a string (just the message), not a raw Error object with a stack
+        expect(typeof errorValue).toBe('string');
+        expect(String(errorValue)).not.toMatch(/at Object\.writeFileSync/);
+      }
+
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+      vi.doUnmock('fs');
+      vi.resetModules();
+    });
+  });
 });

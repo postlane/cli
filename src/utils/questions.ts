@@ -15,6 +15,7 @@ export interface SetupAnswers {
   style: string;
   utmCampaign: string;
   author: string;
+  attribution?: boolean;
 }
 
 export async function askSetupQuestions(useDefaults: boolean): Promise<SetupAnswers> {
@@ -157,11 +158,19 @@ export async function askSetupQuestions(useDefaults: boolean): Promise<SetupAnsw
       message: 'Author name:',
       default: 'Postlane',
     },
+    {
+      type: 'confirm',
+      name: 'attribution',
+      message: "Add a 'Built with Postlane' footer to posts? (opt out any time)",
+      default: true,
+    },
   ]);
 
   return {
     ...answers,
     ...schedulerAnswers,
     ...remainingAnswers,
+    // When user answers yes (or default), don't write the key — absence = enabled.
+    attribution: answers.attribution === false ? false : undefined,
   } as SetupAnswers;
 }

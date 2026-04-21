@@ -120,8 +120,9 @@ export async function initCommand(options: InitOptions) {
     console.log(chalk.gray('\nInvoke /draft-post in your IDE to draft your first post.'));
     console.log(chalk.gray(`API keys go in Postlane's Settings panel, not config.json.`));
     console.log(chalk.gray('postlane.dev/docs/credentials'));
+    console.log(chalk.gray('\nRun `postlane setup-analytics` to enable conversion tracking on your site (requires v3).'));
   } catch (error) {
-    console.error(chalk.red('Setup failed:'), error);
+    console.error(chalk.red('Setup failed:'), error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 }

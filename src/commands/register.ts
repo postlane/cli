@@ -65,7 +65,7 @@ export async function registerCommand() {
         break;
     }
   } catch (error) {
-    console.error(chalk.red('Registration failed:'), error);
+    console.error(chalk.red('Registration failed:'), error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 }
@@ -143,11 +143,11 @@ async function handleRunningState(repoPath: string, repoName: string): Promise<v
       console.log(chalk.gray('The app is now watching this repo.'));
     } else {
       const error = await response.text();
-      console.error(chalk.red('Registration failed:'), error);
+      console.error(chalk.red('Registration failed:'), error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
   } catch (error) {
-    console.error(chalk.red('Failed to connect to Postlane app:'), error);
+    console.error(chalk.red('Failed to connect to Postlane app:'), error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 }
