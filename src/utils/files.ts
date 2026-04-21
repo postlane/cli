@@ -1,11 +1,26 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { mkdirSync, writeFileSync, existsSync, copyFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
 import type { SetupAnswers } from './questions.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// All skill commands — base v1 + v1.1
+const ALL_SKILL_COMMANDS = [
+  'draft-post',
+  'register-repo',
+  'draft-changelog',
+  'draft-show-hn',
+  'draft-product-hunt',
+  'redraft-post',
+  'draft-x',
+  'draft-bluesky',
+  'draft-mastodon',
+  'draft-linkedin',
+  'draft-substack',
+];
 
 export interface ConfigJson {
   version: number;
@@ -26,6 +41,10 @@ export interface ConfigJson {
 }
 
 export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void {
+  if (!isAbsolute(targetDir)) {
+    throw new Error(`targetDir must be an absolute path, got: ${targetDir}`);
+  }
+
   const postlaneDir = join(targetDir, '.postlane');
 
   // Step 1: Create .postlane directory
@@ -91,24 +110,9 @@ posts/**/original.json
   const cliDir = join(__dirname, '..', '..');
   const bundledSkillsDir = join(cliDir, 'bundled-skills');
 
-  // All skill commands — base v1 + v1.1
-  const allCommands = [
-    'draft-post',
-    'register-repo',
-    'draft-changelog',
-    'draft-show-hn',
-    'draft-product-hunt',
-    'redraft-post',
-    'draft-x',
-    'draft-bluesky',
-    'draft-mastodon',
-    'draft-linkedin',
-    'draft-substack',
-  ];
-
   // Copy skill files if they exist in bundled-skills
   const filesToCopy: Array<{ from: string; to: string }> = [
-    ...allCommands.flatMap((cmd) => [
+    ...ALL_SKILL_COMMANDS.flatMap((cmd) => [
       { from: `${cmd}.md`, to: join(claudeCommandsDir, `${cmd}.md`) },
       { from: `${cmd}.prompt`, to: join(postlaneCommandsDir, `${cmd}.prompt`) },
     ]),
@@ -165,22 +169,8 @@ export function repairPartialInit(targetDir: string): void {
   const cliDir = join(__dirname, '..', '..');
   const bundledSkillsDir = join(cliDir, 'bundled-skills');
 
-  const repairCommands = [
-    'draft-post',
-    'register-repo',
-    'draft-changelog',
-    'draft-show-hn',
-    'draft-product-hunt',
-    'redraft-post',
-    'draft-x',
-    'draft-bluesky',
-    'draft-mastodon',
-    'draft-linkedin',
-    'draft-substack',
-  ];
-
   const repairFiles: Array<{ from: string; to: string }> = [
-    ...repairCommands.flatMap((cmd) => [
+    ...ALL_SKILL_COMMANDS.flatMap((cmd) => [
       { from: `${cmd}.md`, to: join(claudeCommandsDir, `${cmd}.md`) },
       { from: `${cmd}.prompt`, to: join(postlaneCommandsDir, `${cmd}.prompt`) },
     ]),

@@ -161,7 +161,7 @@ export async function askSetupQuestions(useDefaults: boolean): Promise<SetupAnsw
     {
       type: 'confirm',
       name: 'attribution',
-      message: "Add a 'Built with Postlane' footer to posts? (opt out any time)",
+      message: "Append 'Built with Postlane' to posts? (e.g., '📮 postlane.dev' added as the last line of each post — opt out any time)",
       default: true,
     },
   ]);
