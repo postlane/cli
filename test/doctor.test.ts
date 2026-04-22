@@ -141,6 +141,19 @@ describe('postlane doctor', () => {
   });
 
   describe('session token check', () => {
+    const tokenPath = join(homedir(), '.postlane', 'session.token');
+    let savedToken: Buffer | null = null;
+
+    beforeEach(() => {
+      savedToken = existsSync(tokenPath) ? require('fs').readFileSync(tokenPath) : null;
+      if (existsSync(tokenPath)) rmSync(tokenPath);
+    });
+
+    afterEach(() => {
+      if (existsSync(tokenPath)) rmSync(tokenPath);
+      if (savedToken !== null) writeFileSync(tokenPath, savedToken);
+    });
+
     it('should fail if session.token does not exist', () => {
       const { runDoctor } = require('../dist/commands/doctor.js');
       const checks = runDoctor();
@@ -151,9 +164,8 @@ describe('postlane doctor', () => {
     });
 
     it('should pass if session.token is readable', () => {
-      const postlaneDir = join(homedir(), '.postlane');
-      mkdirSync(postlaneDir, { recursive: true });
-      writeFileSync(join(postlaneDir, 'session.token'), 'test-token-12345678901234567890123');
+      mkdirSync(join(homedir(), '.postlane'), { recursive: true });
+      writeFileSync(tokenPath, 'test-token-12345678901234567890123');
 
       const { runDoctor } = require('../dist/commands/doctor.js');
       const checks = runDoctor();
