@@ -7,6 +7,15 @@ import type { SetupAnswers } from './questions.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+const SUPPORTED_PLATFORMS = ['x', 'bluesky', 'mastodon', 'linkedin', 'substack', 'product-hunt'] as const;
+
+export function validatePlatforms(platforms: string[]): string[] {
+  const invalid = platforms.filter(
+    (p) => !(SUPPORTED_PLATFORMS as readonly string[]).includes(p)
+  );
+  return invalid;
+}
+
 // All skill commands — base v1 + v1.1
 const ALL_SKILL_COMMANDS = [
   'draft-post',
@@ -43,6 +52,13 @@ export interface ConfigJson {
 export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void {
   if (!isAbsolute(targetDir)) {
     throw new Error(`targetDir must be an absolute path, got: ${targetDir}`);
+  }
+
+  const invalidPlatforms = validatePlatforms(answers.platforms);
+  if (invalidPlatforms.length > 0) {
+    throw new Error(
+      `Unsupported platform(s): ${invalidPlatforms.join(', ')}. Supported: ${SUPPORTED_PLATFORMS.join(', ')}`
+    );
   }
 
   const postlaneDir = join(targetDir, '.postlane');
@@ -109,21 +125,22 @@ posts/**/original.json
   // Get the directory where the CLI is installed
   const cliDir = join(__dirname, '..', '..');
   const bundledSkillsDir = join(cliDir, 'bundled-skills');
+  const bundledCommandsDir = join(bundledSkillsDir, 'commands');
+  const bundledRunnerDir = join(bundledSkillsDir, 'runner');
 
   // Copy skill files if they exist in bundled-skills
   const filesToCopy: Array<{ from: string; to: string }> = [
     ...ALL_SKILL_COMMANDS.flatMap((cmd) => [
-      { from: `${cmd}.md`, to: join(claudeCommandsDir, `${cmd}.md`) },
-      { from: `${cmd}.prompt`, to: join(postlaneCommandsDir, `${cmd}.prompt`) },
+      { from: join(bundledCommandsDir, `${cmd}.md`), to: join(claudeCommandsDir, `${cmd}.md`) },
+      { from: join(bundledCommandsDir, `${cmd}.prompt`), to: join(postlaneCommandsDir, `${cmd}.prompt`) },
     ]),
-    { from: 'preview-template.html', to: join(promptsDir, 'preview-template.html') },
-    { from: 'run.ts', to: join(runnerDir, 'run.ts') },
+    { from: join(bundledSkillsDir, 'preview-template.html'), to: join(promptsDir, 'preview-template.html') },
+    { from: join(bundledRunnerDir, 'run.ts'), to: join(runnerDir, 'run.ts') },
   ];
 
   for (const { from, to } of filesToCopy) {
-    const sourcePath = join(bundledSkillsDir, from);
-    if (existsSync(sourcePath)) {
-      copyFileSync(sourcePath, to);
+    if (existsSync(from)) {
+      copyFileSync(from, to);
     } else {
       // Create placeholder files for now
       writeFileSync(to, `<!-- Placeholder for ${from} -->\n`, 'utf-8');
@@ -168,20 +185,21 @@ export function repairPartialInit(targetDir: string): void {
 
   const cliDir = join(__dirname, '..', '..');
   const bundledSkillsDir = join(cliDir, 'bundled-skills');
+  const bundledCommandsDir = join(bundledSkillsDir, 'commands');
+  const bundledRunnerDir = join(bundledSkillsDir, 'runner');
 
   const repairFiles: Array<{ from: string; to: string }> = [
     ...ALL_SKILL_COMMANDS.flatMap((cmd) => [
-      { from: `${cmd}.md`, to: join(claudeCommandsDir, `${cmd}.md`) },
-      { from: `${cmd}.prompt`, to: join(postlaneCommandsDir, `${cmd}.prompt`) },
+      { from: join(bundledCommandsDir, `${cmd}.md`), to: join(claudeCommandsDir, `${cmd}.md`) },
+      { from: join(bundledCommandsDir, `${cmd}.prompt`), to: join(postlaneCommandsDir, `${cmd}.prompt`) },
     ]),
-    { from: 'preview-template.html', to: join(promptsDir, 'preview-template.html') },
-    { from: 'run.ts', to: join(runnerDir, 'run.ts') },
+    { from: join(bundledSkillsDir, 'preview-template.html'), to: join(promptsDir, 'preview-template.html') },
+    { from: join(bundledRunnerDir, 'run.ts'), to: join(runnerDir, 'run.ts') },
   ];
 
   for (const { from, to } of repairFiles) {
-    const sourcePath = join(bundledSkillsDir, from);
-    if (existsSync(sourcePath) && !existsSync(to)) {
-      copyFileSync(sourcePath, to);
+    if (existsSync(from) && !existsSync(to)) {
+      copyFileSync(from, to);
     } else if (!existsSync(to)) {
       writeFileSync(to, `<!-- Placeholder for ${from} -->\n`, 'utf-8');
     }

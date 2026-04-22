@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: BUSL-1.1
 
-import { existsSync, mkdirSync, copyFileSync } from 'fs';
+import { existsSync, mkdirSync, copyFileSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const PROMPTS_DIR = join(__dirname, '../../prompts');
+const PROMPTS_DIR = process.env.PROMPTS_DIR || join(__dirname, '../../prompts');
 const BUNDLED_SKILLS_DIR = join(__dirname, '../bundled-skills');
 
 // Check if prompts repo exists
@@ -20,33 +20,48 @@ if (!existsSync(PROMPTS_DIR)) {
   process.exit(0);
 }
 
-// Create bundled-skills directory
-mkdirSync(BUNDLED_SKILLS_DIR, { recursive: true });
+// Create bundled-skills directory structure
+const bundledCommandsDir = join(BUNDLED_SKILLS_DIR, 'commands');
+const bundledRunnerDir = join(BUNDLED_SKILLS_DIR, 'runner');
 
-// Files to copy
-const skillFiles = [
-  { src: join(PROMPTS_DIR, 'commands/draft-post.md'), dest: 'draft-post.md' },
-  { src: join(PROMPTS_DIR, 'commands/draft-post.prompt'), dest: 'draft-post.prompt' },
-  { src: join(PROMPTS_DIR, 'commands/register-repo.md'), dest: 'register-repo.md' },
-  { src: join(PROMPTS_DIR, 'commands/register-repo.prompt'), dest: 'register-repo.prompt' },
-  { src: join(PROMPTS_DIR, 'preview-template.html'), dest: 'preview-template.html' },
-  { src: join(PROMPTS_DIR, 'runner/run.ts'), dest: 'run.ts' },
-];
+mkdirSync(bundledCommandsDir, { recursive: true });
+mkdirSync(bundledRunnerDir, { recursive: true });
 
-// Copy files
 let copiedCount = 0;
-for (const { src, dest } of skillFiles) {
-  const destPath = join(BUNDLED_SKILLS_DIR, dest);
 
-  if (existsSync(src)) {
-    copyFileSync(src, destPath);
+// Copy all files from commands/
+const commandsDir = join(PROMPTS_DIR, 'commands');
+if (existsSync(commandsDir)) {
+  const commandFiles = readdirSync(commandsDir);
+  for (const file of commandFiles) {
+    const src = join(commandsDir, file);
+    const dest = join(bundledCommandsDir, file);
+    copyFileSync(src, dest);
     copiedCount++;
-  } else {
-    console.warn('Warning: Skill file not found, skipping:', src);
   }
+} else {
+  console.warn('Warning: commands/ directory not found in prompts repo:', commandsDir);
 }
 
-console.log(`Copied ${copiedCount}/${skillFiles.length} skill files to bundled-skills/`);
+// Copy runner/run.ts if it exists
+const runnerSrc = join(PROMPTS_DIR, 'runner', 'run.ts');
+if (existsSync(runnerSrc)) {
+  copyFileSync(runnerSrc, join(bundledRunnerDir, 'run.ts'));
+  copiedCount++;
+} else {
+  console.warn('Warning: runner/run.ts not found, skipping:', runnerSrc);
+}
+
+// Copy preview-template.html if it exists
+const templateSrc = join(PROMPTS_DIR, 'preview-template.html');
+if (existsSync(templateSrc)) {
+  copyFileSync(templateSrc, join(BUNDLED_SKILLS_DIR, 'preview-template.html'));
+  copiedCount++;
+} else {
+  console.warn('Warning: preview-template.html not found, skipping:', templateSrc);
+}
+
+console.log(`Copied ${copiedCount} files to bundled-skills/`);
 
 if (copiedCount === 0) {
   console.log('WARNING: No skill files were copied. The prompts repo may be incomplete or empty.');

@@ -34,11 +34,12 @@ describe('Build process', () => {
     // Run prebuild (which runs before build)
     execSync('npm run prebuild', { cwd: join(__dirname, '..'), stdio: 'pipe' });
 
-    // Verify files were copied
-    expect(existsSync(join(bundledSkillsDir, 'draft-post.md'))).toBe(true);
-    expect(existsSync(join(bundledSkillsDir, 'draft-post.prompt'))).toBe(true);
-    expect(existsSync(join(bundledSkillsDir, 'register-repo.md'))).toBe(true);
-    expect(existsSync(join(bundledSkillsDir, 'register-repo.prompt'))).toBe(true);
+    // Verify files were copied into commands/ subdirectory
+    const commandsDir = join(bundledSkillsDir, 'commands');
+    expect(existsSync(join(commandsDir, 'draft-post.md'))).toBe(true);
+    expect(existsSync(join(commandsDir, 'draft-post.prompt'))).toBe(true);
+    expect(existsSync(join(commandsDir, 'register-repo.md'))).toBe(true);
+    expect(existsSync(join(commandsDir, 'register-repo.prompt'))).toBe(true);
     expect(existsSync(join(bundledSkillsDir, 'preview-template.html'))).toBe(true);
   });
 

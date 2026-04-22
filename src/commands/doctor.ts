@@ -157,31 +157,33 @@ export function runDoctor(): Check[] {
     });
   }
 
-  // Check 7: Are skill files present and at current version?
-  const draftPostPath = join(targetDir, '.postlane', 'commands', 'draft-post.md');
-  let skillFilesValid = false;
+  // Check 7: Are all expected skill files present in .claude/commands/?
+  const EXPECTED_SKILL_FILES = [
+    'draft-post.md',
+    'draft-x.md',
+    'draft-bluesky.md',
+    'draft-mastodon.md',
+    'draft-linkedin.md',
+    'draft-substack.md',
+    'draft-product-hunt.md',
+    'draft-show-hn.md',
+    'draft-changelog.md',
+    'redraft-post.md',
+  ];
 
-  if (existsSync(draftPostPath)) {
-    try {
-      const content = readFileSync(draftPostPath, 'utf-8');
-      const firstLine = content.split('\n')[0];
-      const versionMatch = firstLine.match(/<!-- postlane-version: ([\d.]+) -->/);
-
-      if (versionMatch) {
-        // TODO: Compare against CLI bundled version
-        // For now, just check that version comment exists
-        skillFilesValid = true;
-      }
-    } catch (error) {
-      // File read failed
-    }
-  }
+  const claudeCommandsPath = join(targetDir, '.claude', 'commands');
+  const missingSkillFiles = EXPECTED_SKILL_FILES.filter(
+    (f) => !existsSync(join(claudeCommandsPath, f))
+  );
+  const skillFilesValid = missingSkillFiles.length === 0;
 
   checks.push({
     name: 'skill-files',
     description: 'Skill files present and current',
     passed: skillFilesValid,
-    fix: skillFilesValid ? undefined : 'Skill files are outdated. Run `npx postlane init --update-skills` to refresh. (Note: --update-skills is coming in v1.1)',
+    fix: skillFilesValid
+      ? undefined
+      : `Missing skill files: ${missingSkillFiles.join(', ')}. Run \`npx postlane init --update-skills\` to refresh. (Note: --update-skills is coming in v1.1)`,
   });
 
   return checks;

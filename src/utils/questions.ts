@@ -18,7 +18,7 @@ export interface SetupAnswers {
   attribution?: boolean;
 }
 
-export async function askSetupQuestions(useDefaults: boolean): Promise<SetupAnswers> {
+export async function askSetupQuestions(useDefaults: boolean, noAttribution = false): Promise<SetupAnswers> {
   if (useDefaults) {
     return {
       baseUrl: 'https://example.com',
@@ -31,6 +31,7 @@ export async function askSetupQuestions(useDefaults: boolean): Promise<SetupAnsw
       style: 'Direct, technically precise.',
       utmCampaign: '',
       author: 'Postlane',
+      attribution: noAttribution ? false : undefined,
     };
   }
 
@@ -166,11 +167,14 @@ export async function askSetupQuestions(useDefaults: boolean): Promise<SetupAnsw
     },
   ]);
 
+  // If --no-attribution was passed, override the prompt answer.
+  // When user answers yes (or default), don't write the key — absence = enabled.
+  const attributionValue = noAttribution ? false : (remainingAnswers.attribution === false ? false : undefined);
+
   return {
     ...answers,
     ...schedulerAnswers,
     ...remainingAnswers,
-    // When user answers yes (or default), don't write the key — absence = enabled.
-    attribution: answers.attribution === false ? false : undefined,
+    attribution: attributionValue,
   } as SetupAnswers;
 }

@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { writeConfigFiles } from '../src/utils/files.js';
+import { writeConfigFiles, validatePlatforms } from '../src/utils/files.js';
 
 // All 9 v1.1 commands (§7.6.1 requires 18 files = 9 × 2)
 const V1_1_COMMANDS = [
@@ -49,13 +49,16 @@ function makeTmpRepo(): string {
 
 function makeBundledSkills(cliDir: string): void {
   const bundledDir = join(cliDir, 'bundled-skills');
-  mkdirSync(bundledDir, { recursive: true });
+  const commandsDir = join(bundledDir, 'commands');
+  const runnerDir = join(bundledDir, 'runner');
+  mkdirSync(commandsDir, { recursive: true });
+  mkdirSync(runnerDir, { recursive: true });
   for (const cmd of ALL_COMMANDS) {
-    writeFileSync(join(bundledDir, `${cmd}.md`), `# ${cmd}`);
-    writeFileSync(join(bundledDir, `${cmd}.prompt`), `prompt for ${cmd}`);
+    writeFileSync(join(commandsDir, `${cmd}.md`), `# ${cmd}`);
+    writeFileSync(join(commandsDir, `${cmd}.prompt`), `prompt for ${cmd}`);
   }
   writeFileSync(join(bundledDir, 'preview-template.html'), '<html></html>');
-  writeFileSync(join(bundledDir, 'run.ts'), 'export {}');
+  writeFileSync(join(runnerDir, 'run.ts'), 'export {}');
 }
 
 // ---------------------------------------------------------------------------
@@ -127,6 +130,40 @@ describe('writeConfigFiles — v1.1 skill files', () => {
 });
 
 // ---------------------------------------------------------------------------
+// --no-attribution flag: writes attribution: false to config.json
+// ---------------------------------------------------------------------------
+
+describe('--no-attribution flag', () => {
+  let repoDir: string;
+
+  beforeEach(() => {
+    repoDir = makeTmpRepo();
+  });
+
+  afterEach(() => {
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it('writes attribution: false when --no-attribution is passed with --defaults', async () => {
+    const { askSetupQuestions } = await import('../src/utils/questions.js');
+    // useDefaults=true, noAttribution=true
+    const answers = await askSetupQuestions(true, true);
+    writeConfigFiles(repoDir, answers);
+    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
+    expect(config.attribution).toBe(false);
+  });
+
+  it('does not write attribution key when --defaults is passed without --no-attribution', async () => {
+    const { askSetupQuestions } = await import('../src/utils/questions.js');
+    // useDefaults=true, noAttribution=false (default)
+    const answers = await askSetupQuestions(true, false);
+    writeConfigFiles(repoDir, answers);
+    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
+    expect(config.attribution).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // §7.6.2 — forward reference printed after setup
 // The message is output from initCommand() — tested at integration level in cli.test.ts
 // Here we verify the string is referenced in the source
@@ -168,5 +205,44 @@ describe('writeConfigFiles — attribution field', () => {
     writeConfigFiles(repoDir, { ...MINIMAL_ANSWERS, attribution: false });
     const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
     expect(config.attribution).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fix 4 — platform validation: rejects unsupported platforms
+// ---------------------------------------------------------------------------
+
+describe('platform validation', () => {
+  let repoDir: string;
+
+  beforeEach(() => {
+    repoDir = makeTmpRepo();
+  });
+
+  afterEach(() => {
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it('validatePlatforms returns empty array for valid platforms', () => {
+    expect(validatePlatforms(['x', 'bluesky', 'mastodon'])).toEqual([]);
+  });
+
+  it('validatePlatforms returns invalid platforms', () => {
+    const invalid = validatePlatforms(['x', 'tiktok', 'instagram']);
+    expect(invalid).toContain('tiktok');
+    expect(invalid).toContain('instagram');
+    expect(invalid).not.toContain('x');
+  });
+
+  it('writeConfigFiles throws when an unsupported platform is provided', () => {
+    expect(() => {
+      writeConfigFiles(repoDir, { ...MINIMAL_ANSWERS, platforms: ['x', 'tiktok'] });
+    }).toThrow(/Unsupported platform/);
+  });
+
+  it('writeConfigFiles throws with the name of the invalid platform', () => {
+    expect(() => {
+      writeConfigFiles(repoDir, { ...MINIMAL_ANSWERS, platforms: ['instagram'] });
+    }).toThrow('instagram');
   });
 });

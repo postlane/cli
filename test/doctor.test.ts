@@ -175,6 +175,60 @@ describe('postlane doctor', () => {
     });
   });
 
+  describe('skill-files check', () => {
+    const EXPECTED_SKILL_FILES = [
+      'draft-post.md',
+      'draft-x.md',
+      'draft-bluesky.md',
+      'draft-mastodon.md',
+      'draft-linkedin.md',
+      'draft-substack.md',
+      'draft-product-hunt.md',
+      'draft-show-hn.md',
+      'draft-changelog.md',
+      'redraft-post.md',
+    ];
+
+    it('should fail when no skill files exist', () => {
+      const { runDoctor } = require('../dist/commands/doctor.js');
+      const checks = runDoctor();
+      const skillCheck = checks.find((c: any) => c.name === 'skill-files');
+
+      expect(skillCheck).toBeDefined();
+      expect(skillCheck.passed).toBe(false);
+      expect(skillCheck.fix).toContain('Missing skill files');
+    });
+
+    it('should fail when only some skill files exist', () => {
+      const commandsDir = join(testDir, '.claude', 'commands');
+      mkdirSync(commandsDir, { recursive: true });
+      // Only write draft-post.md, not the others
+      writeFileSync(join(commandsDir, 'draft-post.md'), '# draft-post');
+
+      const { runDoctor } = require('../dist/commands/doctor.js');
+      const checks = runDoctor();
+      const skillCheck = checks.find((c: any) => c.name === 'skill-files');
+
+      expect(skillCheck.passed).toBe(false);
+      expect(skillCheck.fix).toContain('draft-x.md');
+    });
+
+    it('should pass when all expected skill files exist', () => {
+      const commandsDir = join(testDir, '.claude', 'commands');
+      mkdirSync(commandsDir, { recursive: true });
+      for (const file of EXPECTED_SKILL_FILES) {
+        writeFileSync(join(commandsDir, file), `# ${file}`);
+      }
+
+      const { runDoctor } = require('../dist/commands/doctor.js');
+      const checks = runDoctor();
+      const skillCheck = checks.find((c: any) => c.name === 'skill-files');
+
+      expect(skillCheck.passed).toBe(true);
+      expect(skillCheck.fix).toBeUndefined();
+    });
+  });
+
   describe('exit code', () => {
     it('should exit with 0 if all checks pass', () => {
       // Set up a valid environment

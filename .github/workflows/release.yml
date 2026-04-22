@@ -13,6 +13,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Checkout prompts
+        uses: actions/checkout@v4
+        with:
+          repository: postlane/prompts
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: prompts-checkout
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -24,6 +31,17 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          PROMPTS_DIR: ${{ github.workspace }}/prompts-checkout
+
+      - name: Verify bundled skills
+        run: |
+          count=$(ls bundled-skills/commands/*.md 2>/dev/null | wc -l)
+          if [ "$count" -lt 10 ]; then
+            echo "ERROR: bundled-skills/commands has only $count .md files, expected at least 10"
+            exit 1
+          fi
+          echo "bundled-skills OK: $count .md files"
 
       - name: Run tests
         run: npm test

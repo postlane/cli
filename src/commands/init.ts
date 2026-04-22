@@ -11,6 +11,7 @@ import { registerCommand } from './register.js';
 
 interface InitOptions {
   defaults?: boolean;
+  noAttribution?: boolean;
 }
 
 export async function initCommand(options: InitOptions) {
@@ -106,7 +107,7 @@ export async function initCommand(options: InitOptions) {
     console.log(chalk.gray('This will configure Postlane for this repository.\n'));
 
     // Ask setup questions
-    const answers = await askSetupQuestions(options.defaults || false);
+    const answers = await askSetupQuestions(options.defaults || false, options.noAttribution || false);
 
     // Write all config files
     writeConfigFiles(targetDir, answers);

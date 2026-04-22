@@ -32,3 +32,6 @@ npm-debug.log*
 
 # CodeGraph
 .codegraph/
+
+# Bundled skills (generated at build time from prompts repo)
+bundled-skills/

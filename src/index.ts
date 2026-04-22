@@ -17,6 +17,7 @@ program
   .command('init')
   .description('Set up Postlane in the current repository')
   .option('--defaults', 'Use default values for all questions')
+  .option('--no-attribution', 'Disable "Built with Postlane" attribution in posts')
   .action(initCommand);
 
 program
