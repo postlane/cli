@@ -227,6 +227,10 @@ describe('platform validation', () => {
     expect(validatePlatforms(['x', 'bluesky', 'mastodon'])).toEqual([]);
   });
 
+  it('validatePlatforms accepts substack_notes', () => {
+    expect(validatePlatforms(['substack_notes'])).toEqual([]);
+  });
+
   it('validatePlatforms returns invalid platforms', () => {
     const invalid = validatePlatforms(['x', 'tiktok', 'instagram']);
     expect(invalid).toContain('tiktok');
