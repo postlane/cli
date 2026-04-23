@@ -231,6 +231,18 @@ describe('platform validation', () => {
     expect(validatePlatforms(['substack_notes'])).toEqual([]);
   });
 
+  it('validatePlatforms accepts show_hn', () => {
+    expect(validatePlatforms(['show_hn'])).toEqual([]);
+  });
+
+  it('validatePlatforms accepts changelog', () => {
+    expect(validatePlatforms(['changelog'])).toEqual([]);
+  });
+
+  it('validatePlatforms accepts product_hunt (snake_case, matching desktop)', () => {
+    expect(validatePlatforms(['product_hunt'])).toEqual([]);
+  });
+
   it('validatePlatforms returns invalid platforms', () => {
     const invalid = validatePlatforms(['x', 'tiktok', 'instagram']);
     expect(invalid).toContain('tiktok');
