@@ -6,6 +6,7 @@ import chalk from 'chalk';
 export interface SetupAnswers {
   baseUrl: string;
   platforms: string[];
+  mastodonInstance?: string;
   llmProvider: string;
   llmModel: string;
   schedulerProvider: string;
@@ -23,6 +24,7 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
     return {
       baseUrl: 'https://example.com',
       platforms: ['x', 'bluesky', 'mastodon'],
+      mastodonInstance: 'mastodon.social',
       llmProvider: 'anthropic',
       llmModel: 'claude-sonnet-4-5-20250929',
       schedulerProvider: 'zernio',
@@ -54,6 +56,18 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
       message: 'Platforms (comma-separated):',
       default: 'x,bluesky,mastodon',
       filter: (input: string) => input.split(',').map(p => p.trim()),
+    },
+    {
+      type: 'input',
+      name: 'mastodonInstance',
+      message: 'Mastodon instance hostname (e.g. mastodon.social):',
+      default: 'mastodon.social',
+      when: (answers: Partial<SetupAnswers>) => Array.isArray(answers.platforms) && answers.platforms.includes('mastodon'),
+      validate: (input: string) => {
+        if (input.includes('://')) return 'Enter a hostname only, not a URL (e.g. mastodon.social)';
+        if (!input.trim()) return 'Mastodon instance hostname is required';
+        return true;
+      },
     },
     {
       type: 'list',

@@ -262,3 +262,61 @@ describe('platform validation', () => {
     }).toThrow('instagram');
   });
 });
+
+// ---------------------------------------------------------------------------
+// 9.3.3 — mastodon_instance written to config.json when mastodon is in platforms
+// ---------------------------------------------------------------------------
+
+describe('writeConfigFiles — mastodon_instance', () => {
+  let repoDir: string;
+
+  beforeEach(() => {
+    repoDir = makeTmpRepo();
+  });
+
+  afterEach(() => {
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it('writes mastodon_instance when mastodon is in platforms and mastodonInstance is provided', () => {
+    writeConfigFiles(repoDir, {
+      ...MINIMAL_ANSWERS,
+      platforms: ['x', 'mastodon'],
+      mastodonInstance: 'mastodon.social',
+    });
+    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
+    expect(config.mastodon_instance).toBe('mastodon.social');
+  });
+
+  it('does not write mastodon_instance when mastodon is not in platforms', () => {
+    writeConfigFiles(repoDir, {
+      ...MINIMAL_ANSWERS,
+      platforms: ['x', 'bluesky'],
+      mastodonInstance: 'mastodon.social',
+    });
+    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
+    expect(config.mastodon_instance).toBeUndefined();
+  });
+
+  it('does not write mastodon_instance when mastodonInstance is not provided', () => {
+    writeConfigFiles(repoDir, {
+      ...MINIMAL_ANSWERS,
+      platforms: ['x', 'mastodon'],
+    });
+    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
+    expect(config.mastodon_instance).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue 2 — askSetupQuestions includes mastodonInstance in --defaults mode
+// ---------------------------------------------------------------------------
+
+describe('askSetupQuestions — mastodon instance (useDefaults)', () => {
+  it('returns mastodonInstance when default platforms include mastodon', async () => {
+    const { askSetupQuestions } = await import('../src/utils/questions.js');
+    const answers = await askSetupQuestions(true);
+    expect(answers.platforms).toContain('mastodon');
+    expect(answers.mastodonInstance).toBe('mastodon.social');
+  });
+});

@@ -35,6 +35,7 @@ export interface ConfigJson {
   version: number;
   base_url: string;
   platforms: string[];
+  mastodon_instance?: string;
   llm: {
     provider: string;
     model: string;
@@ -67,10 +68,13 @@ export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void
   mkdirSync(postlaneDir, { recursive: true });
 
   // Step 2: Write config.json
+  const hasMastodon = answers.platforms.includes('mastodon');
+
   const config: ConfigJson & { attribution?: boolean } = {
     version: 1,
     base_url: answers.baseUrl,
     platforms: answers.platforms,
+    ...(hasMastodon && answers.mastodonInstance ? { mastodon_instance: answers.mastodonInstance } : {}),
     llm: {
       provider: answers.llmProvider,
       model: answers.llmModel,
