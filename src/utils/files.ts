@@ -42,7 +42,6 @@ export interface ConfigJson {
   };
   scheduler: {
     provider: string;
-    profile_id?: string;
   };
   repo_type: string;
   style: string;
@@ -81,7 +80,6 @@ export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void
     },
     scheduler: {
       provider: answers.schedulerProvider,
-      ...(answers.profileId && { profile_id: answers.profileId }),
     },
     repo_type: answers.repoType,
     style: answers.style,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
+import { mkdirSync, writeFileSync, rmSync, existsSync, statSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
@@ -275,6 +275,41 @@ describe('postlane register', () => {
       exitSpy.mockRestore();
       vi.doUnmock('fs');
       vi.resetModules();
+    });
+  });
+
+  describe('writeSecureJson — file permissions', () => {
+    it('writes file with mode 0600', async () => {
+      const { writeSecureJson } = await import('../src/commands/register.js');
+      const testFile = join(tmpdir(), `postlane-perm-test-${Date.now()}.json`);
+      writeSecureJson(testFile, { version: 1, repos: [] });
+      const stat = statSync(testFile);
+      expect(stat.mode & 0o777).toBe(0o600);
+      rmSync(testFile);
+    });
+  });
+
+  describe('git directory validation — symlink rejection', () => {
+    it('rejects a .git that is a symlink, not a real directory', async () => {
+      const { symlinkSync } = await import('fs');
+      const realGit = join(tmpdir(), `postlane-real-git-${Date.now()}`);
+      mkdirSync(realGit, { recursive: true });
+      // Create a symlink .git pointing to the real directory
+      const symGit = join(testDir, '.git');
+      rmSync(symGit, { recursive: true, force: true });
+      symlinkSync(realGit, symGit);
+
+      const { registerCommand } = await import('../src/commands/register.js');
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await expect(registerCommand()).rejects.toThrow();
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(errSpy.mock.calls.some(a => String(a[0]).includes('not a git repository') || String(a[0]).includes('symlink'))).toBe(true);
+
+      exitSpy.mockRestore();
+      errSpy.mockRestore();
+      rmSync(realGit, { recursive: true, force: true });
     });
   });
 });

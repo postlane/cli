@@ -64,8 +64,7 @@ export async function initCommand(options: InitOptions) {
 
       if (action === 'register') {
         console.log(chalk.blue('\nSkipping setup, proceeding to registration...'));
-        // TODO: Call postlane register command
-        console.log(chalk.yellow('Run `npx postlane register` to register this repo with the app.'));
+        await registerCommand();
         return;
       }
       // If overwrite, continue with setup

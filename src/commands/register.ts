@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, lstatSync } from 'fs';
 import { homedir } from 'os';
 import { join, basename } from 'path';
 import chalk from 'chalk';
 import { randomUUID } from 'crypto';
+
+export function writeSecureJson(filePath: string, data: unknown): void {
+  writeFileSync(filePath, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
+}
 
 type AppState = 'running' | 'installed' | 'not-installed';
 
@@ -41,9 +45,10 @@ export async function registerCommand() {
   try {
     const targetPath = process.cwd();
 
-    // Validate git repository
+    // Validate git repository — reject symlinks to prevent path traversal
     const gitDir = join(targetPath, '.git');
-    if (!existsSync(gitDir)) {
+    const gitStat = existsSync(gitDir) ? lstatSync(gitDir) : null;
+    if (!gitStat || !gitStat.isDirectory()) {
       console.error(chalk.red(`Error: ${targetPath} is not a git repository.`));
       console.error(chalk.yellow('Run postlane register from inside a git repo.'));
       process.exit(1);
@@ -189,8 +194,7 @@ function handleInstalledState(repoPath: string, repoName: string): void {
 
   config.repos.push(newRepo);
 
-  // Write to repos.json
-  writeFileSync(reposPath, JSON.stringify(config, null, 2), 'utf-8');
+  writeSecureJson(reposPath, config);
 
   console.log(chalk.green(`✓ ${repoName} saved to Postlane.`));
   console.log(chalk.gray('  Open the app to start watching: postlane://open'));
