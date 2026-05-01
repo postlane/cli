@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { existsSync, readFileSync } from 'fs';
+import { execFileSync } from 'child_process';
 import { homedir } from 'os';
 import { join } from 'path';
 import chalk from 'chalk';
+
+export function isValidPort(portStr: string): boolean {
+  if (!/^\d{1,5}$/.test(portStr)) return false;
+  const n = parseInt(portStr, 10);
+  return n >= 1 && n <= 65535;
+}
 
 interface Check {
   name: string;
@@ -82,18 +89,17 @@ export function runDoctor(): Check[] {
 
   if (existsSync(portPath)) {
     try {
-      const port = readFileSync(portPath, 'utf-8').trim();
-      const healthUrl = `http://127.0.0.1:${port}/health`;
-
-      // Synchronous health check with timeout
-      const { execSync } = require('child_process');
-      try {
-        execSync(`curl -s -m 0.2 ${healthUrl}`, { stdio: 'pipe' });
-        appRunning = true;
-      } catch (error) {
-        // Health check failed
+      const portStr = readFileSync(portPath, 'utf-8').trim();
+      if (isValidPort(portStr)) {
+        const healthUrl = `http://127.0.0.1:${portStr}/health`;
+        try {
+          execFileSync('curl', ['-s', '-m', '0.2', healthUrl], { stdio: 'pipe' });
+          appRunning = true;
+        } catch {
+          // Health check failed — app not running
+        }
       }
-    } catch (error) {
+    } catch {
       // Port file read failed
     }
   }
@@ -140,22 +146,17 @@ export function runDoctor(): Check[] {
     fix: tokenReadable ? undefined : 'Restart the Postlane app to regenerate the session token.',
   });
 
-  // Check 6: Can it reach the configured scheduler API?
-  if (appRunning && configValid) {
-    checks.push({
-      name: 'scheduler-api',
-      description: 'Scheduler API reachable',
-      passed: true, // TODO: Implement test_connection via HTTP in Milestone 4
-      fix: undefined,
-    });
-  } else {
-    checks.push({
-      name: 'scheduler-api',
-      description: 'Scheduler API reachable',
-      passed: false,
-      fix: appRunning ? 'Check your API key in Postlane Settings → Scheduler.' : 'Start the Postlane app first to test scheduler connectivity.',
-    });
-  }
+  // Check 6: Scheduler API connectivity (not yet testable without live HTTP round-trip)
+  checks.push({
+    name: 'scheduler-api',
+    description: 'Scheduler API reachable',
+    passed: false,
+    fix: appRunning && configValid
+      ? 'Open Postlane Settings → Scheduler to verify your API key.'
+      : appRunning
+        ? 'Check your API key in Postlane Settings → Scheduler.'
+        : 'Start the Postlane app first to test scheduler connectivity.',
+  });
 
   // Check 7: Are all expected skill files present in .claude/commands/?
   const EXPECTED_SKILL_FILES = [

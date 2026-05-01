@@ -266,4 +266,38 @@ describe('postlane doctor', () => {
       expect(exitCode).toBe(1);
     });
   });
+
+  describe('isValidPort', () => {
+    it('rejects port strings containing shell metacharacters', () => {
+      const { isValidPort } = require('../dist/commands/doctor.js');
+      expect(isValidPort('9999; touch /tmp/x')).toBe(false);
+      expect(isValidPort('$(id)')).toBe(false);
+      expect(isValidPort('&& rm -rf /')).toBe(false);
+      expect(isValidPort('')).toBe(false);
+    });
+
+    it('accepts valid port strings', () => {
+      const { isValidPort } = require('../dist/commands/doctor.js');
+      expect(isValidPort('47312')).toBe(true);
+      expect(isValidPort('1')).toBe(true);
+      expect(isValidPort('65535')).toBe(true);
+    });
+
+    it('rejects out-of-range ports', () => {
+      const { isValidPort } = require('../dist/commands/doctor.js');
+      expect(isValidPort('0')).toBe(false);
+      expect(isValidPort('65536')).toBe(false);
+      expect(isValidPort('99999')).toBe(false);
+    });
+  });
+
+  describe('scheduler-api check', () => {
+    it('should never report scheduler as reachable when implementation is a TODO', () => {
+      const { runDoctor } = require('../dist/commands/doctor.js');
+      const checks = runDoctor();
+      const schedulerCheck = checks.find((c: any) => c.name === 'scheduler-api');
+      // Hardcoded pass: true is deceptive — the implementation is a stub
+      expect(schedulerCheck?.passed).toBe(false);
+    });
+  });
 });
