@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, lstatSync } from 'fs';
 import { homedir } from 'os';
 import { join, basename } from 'path';
 import chalk from 'chalk';
 import { randomUUID } from 'crypto';
+
+export function writeSecureJson(filePath: string, data: unknown): void {
+  writeFileSync(filePath, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
+}
 
 type AppState = 'running' | 'installed' | 'not-installed';
 
@@ -41,9 +45,10 @@ export async function registerCommand() {
   try {
     const targetPath = process.cwd();
 
-    // Validate git repository
+    // Validate git repository — reject symlinks to prevent path traversal
     const gitDir = join(targetPath, '.git');
-    if (!existsSync(gitDir)) {
+    const gitStat = existsSync(gitDir) ? lstatSync(gitDir) : null;
+    if (!gitStat || !gitStat.isDirectory()) {
       console.error(chalk.red(`Error: ${targetPath} is not a git repository.`));
       console.error(chalk.yellow('Run postlane register from inside a git repo.'));
       process.exit(1);
@@ -70,30 +75,39 @@ export async function registerCommand() {
   }
 }
 
+function isValidPort(value: string): boolean {
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 1 && n <= 65535;
+}
+
 async function detectAppState(): Promise<AppState> {
   const postlaneDir = join(homedir(), '.postlane');
   const portPath = join(postlaneDir, 'port');
 
   // Step 1: Try to connect to running instance
   if (existsSync(portPath)) {
-    try {
-      const port = readFileSync(portPath, 'utf-8').trim();
-      const healthUrl = `http://127.0.0.1:${port}/health`;
+    const port = readFileSync(portPath, 'utf-8').trim();
+    if (!isValidPort(port)) {
+      console.warn(`[postlane] port file contains invalid port value '${port}' — skipping health check`);
+    } else {
+      try {
+        const healthUrl = `http://127.0.0.1:${port}/health`;
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 200);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 200);
 
-      const response = await fetch(healthUrl, {
-        signal: controller.signal,
-      });
+        const response = await fetch(healthUrl, {
+          signal: controller.signal,
+        });
 
-      clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
 
-      if (response.ok) {
-        return 'running';
+        if (response.ok) {
+          return 'running';
+        }
+      } catch (error) {
+        // Health check failed - app not running
       }
-    } catch (error) {
-      // Health check failed - app not running
     }
   }
 
@@ -189,8 +203,7 @@ function handleInstalledState(repoPath: string, repoName: string): void {
 
   config.repos.push(newRepo);
 
-  // Write to repos.json
-  writeFileSync(reposPath, JSON.stringify(config, null, 2), 'utf-8');
+  writeSecureJson(reposPath, config);
 
   console.log(chalk.green(`✓ ${repoName} saved to Postlane.`));
   console.log(chalk.gray('  Open the app to start watching: postlane://open'));

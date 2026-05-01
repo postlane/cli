@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir, homedir } from 'os';
-import { execSync } from 'child_process';
+import { runDoctor, getExitCode, isValidPort } from '../src/commands/doctor.js';
 
 describe('postlane doctor', () => {
   let testDir: string;
@@ -29,30 +29,26 @@ describe('postlane doctor', () => {
   });
 
   describe('config.json check', () => {
-    it('should fail if config.json does not exist', () => {
-      // No config.json exists
-      const { runDoctor } = require('../dist/commands/doctor.js');
+    it('should fail if config.json does not exist', async () => {
+      const checks = await runDoctor();
+      const configCheck = checks.find((c) => c.name === 'config.json');
 
-      const checks = runDoctor();
-      const configCheck = checks.find((c: any) => c.name === 'config.json');
-
-      expect(configCheck.passed).toBe(false);
-      expect(configCheck.fix).toContain('npx postlane init');
+      expect(configCheck?.passed).toBe(false);
+      expect(configCheck?.fix).toContain('npx postlane init');
     });
 
-    it('should fail if config.json is invalid JSON', () => {
+    it('should fail if config.json is invalid JSON', async () => {
       const postlaneDir = join(testDir, '.postlane');
       mkdirSync(postlaneDir, { recursive: true });
       writeFileSync(join(postlaneDir, 'config.json'), '{ invalid json }');
 
-      const { runDoctor } = require('../dist/commands/doctor.js');
-      const checks = runDoctor();
-      const configCheck = checks.find((c: any) => c.name === 'config.json');
+      const checks = await runDoctor();
+      const configCheck = checks.find((c) => c.name === 'config.json');
 
-      expect(configCheck.passed).toBe(false);
+      expect(configCheck?.passed).toBe(false);
     });
 
-    it('should pass if config.json is valid', () => {
+    it('should pass if config.json is valid', async () => {
       const postlaneDir = join(testDir, '.postlane');
       mkdirSync(postlaneDir, { recursive: true });
 
@@ -70,50 +66,46 @@ describe('postlane doctor', () => {
 
       writeFileSync(join(postlaneDir, 'config.json'), JSON.stringify(config, null, 2));
 
-      const { runDoctor } = require('../dist/commands/doctor.js');
-      const checks = runDoctor();
-      const configCheck = checks.find((c: any) => c.name === 'config.json');
+      const checks = await runDoctor();
+      const configCheck = checks.find((c) => c.name === 'config.json');
 
-      expect(configCheck.passed).toBe(true);
+      expect(configCheck?.passed).toBe(true);
     });
   });
 
   describe('app installation check', () => {
-    it('should check known install paths for current platform', () => {
-      const { runDoctor } = require('../dist/commands/doctor.js');
-      const checks = runDoctor();
-      const installCheck = checks.find((c: any) => c.name === 'app-installed');
+    it('should check known install paths for current platform', async () => {
+      const checks = await runDoctor();
+      const installCheck = checks.find((c) => c.name === 'app-installed');
 
       // Will likely fail unless app is actually installed
       expect(installCheck).toBeDefined();
-      expect(installCheck.fix).toContain('postlane.dev/download');
+      expect(installCheck?.fix).toContain('postlane.dev/download');
     });
   });
 
   describe('app running check', () => {
-    it('should check if app is running via health endpoint', () => {
-      const { runDoctor } = require('../dist/commands/doctor.js');
-      const checks = runDoctor();
-      const runningCheck = checks.find((c: any) => c.name === 'app-running');
+    it('should check if app is running via health endpoint', async () => {
+      const checks = await runDoctor();
+      const runningCheck = checks.find((c) => c.name === 'app-running');
 
       expect(runningCheck).toBeDefined();
-      if (!runningCheck.passed) {
-        expect(runningCheck.fix).toContain('Open the Postlane app');
+      if (!runningCheck?.passed) {
+        expect(runningCheck?.fix).toContain('Open the Postlane app');
       }
     });
   });
 
   describe('repo registration check', () => {
-    it('should fail if repos.json does not exist', () => {
-      const { runDoctor } = require('../dist/commands/doctor.js');
-      const checks = runDoctor();
-      const repoCheck = checks.find((c: any) => c.name === 'repo-registered');
+    it('should fail if repos.json does not exist', async () => {
+      const checks = await runDoctor();
+      const repoCheck = checks.find((c) => c.name === 'repo-registered');
 
-      expect(repoCheck.passed).toBe(false);
-      expect(repoCheck.fix).toContain('postlane register');
+      expect(repoCheck?.passed).toBe(false);
+      expect(repoCheck?.fix).toContain('postlane register');
     });
 
-    it('should fail if current path is not in repos.json', () => {
+    it('should fail if current path is not in repos.json', async () => {
       const postlaneDir = join(homedir(), '.postlane');
       mkdirSync(postlaneDir, { recursive: true });
 
@@ -132,11 +124,10 @@ describe('postlane doctor', () => {
 
       writeFileSync(join(postlaneDir, 'repos.json'), JSON.stringify(repos, null, 2));
 
-      const { runDoctor } = require('../dist/commands/doctor.js');
-      const checks = runDoctor();
-      const repoCheck = checks.find((c: any) => c.name === 'repo-registered');
+      const checks = await runDoctor();
+      const repoCheck = checks.find((c) => c.name === 'repo-registered');
 
-      expect(repoCheck.passed).toBe(false);
+      expect(repoCheck?.passed).toBe(false);
     });
   });
 
@@ -145,7 +136,7 @@ describe('postlane doctor', () => {
     let savedToken: Buffer | null = null;
 
     beforeEach(() => {
-      savedToken = existsSync(tokenPath) ? require('fs').readFileSync(tokenPath) : null;
+      savedToken = existsSync(tokenPath) ? readFileSync(tokenPath) : null;
       if (existsSync(tokenPath)) rmSync(tokenPath);
     });
 
@@ -154,24 +145,22 @@ describe('postlane doctor', () => {
       if (savedToken !== null) writeFileSync(tokenPath, savedToken);
     });
 
-    it('should fail if session.token does not exist', () => {
-      const { runDoctor } = require('../dist/commands/doctor.js');
-      const checks = runDoctor();
-      const tokenCheck = checks.find((c: any) => c.name === 'session-token');
+    it('should fail if session.token does not exist', async () => {
+      const checks = await runDoctor();
+      const tokenCheck = checks.find((c) => c.name === 'session-token');
 
-      expect(tokenCheck.passed).toBe(false);
-      expect(tokenCheck.fix).toContain('Restart the Postlane app');
+      expect(tokenCheck?.passed).toBe(false);
+      expect(tokenCheck?.fix).toContain('Restart the Postlane app');
     });
 
-    it('should pass if session.token is readable', () => {
+    it('should pass if session.token is readable', async () => {
       mkdirSync(join(homedir(), '.postlane'), { recursive: true });
       writeFileSync(tokenPath, 'test-token-12345678901234567890123');
 
-      const { runDoctor } = require('../dist/commands/doctor.js');
-      const checks = runDoctor();
-      const tokenCheck = checks.find((c: any) => c.name === 'session-token');
+      const checks = await runDoctor();
+      const tokenCheck = checks.find((c) => c.name === 'session-token');
 
-      expect(tokenCheck.passed).toBe(true);
+      expect(tokenCheck?.passed).toBe(true);
     });
   });
 
@@ -189,49 +178,45 @@ describe('postlane doctor', () => {
       'redraft-post.md',
     ];
 
-    it('should fail when no skill files exist', () => {
-      const { runDoctor } = require('../dist/commands/doctor.js');
-      const checks = runDoctor();
-      const skillCheck = checks.find((c: any) => c.name === 'skill-files');
+    it('should fail when no skill files exist', async () => {
+      const checks = await runDoctor();
+      const skillCheck = checks.find((c) => c.name === 'skill-files');
 
       expect(skillCheck).toBeDefined();
-      expect(skillCheck.passed).toBe(false);
-      expect(skillCheck.fix).toContain('Missing skill files');
+      expect(skillCheck?.passed).toBe(false);
+      expect(skillCheck?.fix).toContain('Missing skill files');
     });
 
-    it('should fail when only some skill files exist', () => {
+    it('should fail when only some skill files exist', async () => {
       const commandsDir = join(testDir, '.claude', 'commands');
       mkdirSync(commandsDir, { recursive: true });
       // Only write draft-post.md, not the others
       writeFileSync(join(commandsDir, 'draft-post.md'), '# draft-post');
 
-      const { runDoctor } = require('../dist/commands/doctor.js');
-      const checks = runDoctor();
-      const skillCheck = checks.find((c: any) => c.name === 'skill-files');
+      const checks = await runDoctor();
+      const skillCheck = checks.find((c) => c.name === 'skill-files');
 
-      expect(skillCheck.passed).toBe(false);
-      expect(skillCheck.fix).toContain('draft-x.md');
+      expect(skillCheck?.passed).toBe(false);
+      expect(skillCheck?.fix).toContain('draft-x.md');
     });
 
-    it('should pass when all expected skill files exist', () => {
+    it('should pass when all expected skill files exist', async () => {
       const commandsDir = join(testDir, '.claude', 'commands');
       mkdirSync(commandsDir, { recursive: true });
       for (const file of EXPECTED_SKILL_FILES) {
         writeFileSync(join(commandsDir, file), `# ${file}`);
       }
 
-      const { runDoctor } = require('../dist/commands/doctor.js');
-      const checks = runDoctor();
-      const skillCheck = checks.find((c: any) => c.name === 'skill-files');
+      const checks = await runDoctor();
+      const skillCheck = checks.find((c) => c.name === 'skill-files');
 
-      expect(skillCheck.passed).toBe(true);
-      expect(skillCheck.fix).toBeUndefined();
+      expect(skillCheck?.passed).toBe(true);
+      expect(skillCheck?.fix).toBeUndefined();
     });
   });
 
   describe('exit code', () => {
-    it('should exit with 0 if all checks pass', () => {
-      // Set up a valid environment
+    it('should exit with 0 if all checks pass', async () => {
       const postlaneDir = join(testDir, '.postlane');
       mkdirSync(postlaneDir, { recursive: true });
 
@@ -249,21 +234,76 @@ describe('postlane doctor', () => {
 
       writeFileSync(join(postlaneDir, 'config.json'), JSON.stringify(config, null, 2));
 
-      const { getExitCode } = require('../dist/commands/doctor.js');
-      const checks = require('../dist/commands/doctor.js').runDoctor();
+      const checks = await runDoctor();
       const exitCode = getExitCode(checks);
 
       // Will be 1 unless all checks actually pass (app running, etc.)
       expect([0, 1]).toContain(exitCode);
     });
 
-    it('should exit with 1 if any check fails', () => {
-      // No config.json - will fail
-      const { getExitCode } = require('../dist/commands/doctor.js');
-      const checks = require('../dist/commands/doctor.js').runDoctor();
+    it('should exit with 1 if any check fails', async () => {
+      const checks = await runDoctor();
       const exitCode = getExitCode(checks);
 
       expect(exitCode).toBe(1);
+    });
+  });
+
+  describe('isValidPort', () => {
+    it('rejects port strings containing shell metacharacters', () => {
+      expect(isValidPort('9999; touch /tmp/x')).toBe(false);
+      expect(isValidPort('$(id)')).toBe(false);
+      expect(isValidPort('&& rm -rf /')).toBe(false);
+      expect(isValidPort('')).toBe(false);
+    });
+
+    it('accepts valid port strings', () => {
+      expect(isValidPort('47312')).toBe(true);
+      expect(isValidPort('1')).toBe(true);
+      expect(isValidPort('65535')).toBe(true);
+    });
+
+    it('rejects out-of-range ports', () => {
+      expect(isValidPort('0')).toBe(false);
+      expect(isValidPort('65536')).toBe(false);
+      expect(isValidPort('99999')).toBe(false);
+    });
+  });
+
+  describe('scheduler-api check', () => {
+    it('should never report scheduler as reachable when implementation is a TODO', async () => {
+      const checks = await runDoctor();
+      const schedulerCheck = checks.find((c) => c.name === 'scheduler-api');
+      expect(schedulerCheck?.passed).toBe(false);
+    });
+  });
+
+  describe('health check — uses fetch not curl', () => {
+    it('never calls execFileSync during the app-running health check', async () => {
+      vi.resetModules();
+      const execFileSyncMock = vi.fn();
+
+      // Write a valid port file so the health-check branch is entered
+      const postlaneDir = join(homedir(), '.postlane');
+      mkdirSync(postlaneDir, { recursive: true });
+      const portFile = join(postlaneDir, 'port');
+      const wrotePort = !existsSync(portFile);
+      if (wrotePort) writeFileSync(portFile, '47312');
+
+      vi.doMock('child_process', () => ({
+        execFileSync: execFileSyncMock,
+        execSync: vi.fn(),
+      }));
+
+      const { runDoctor: freshRunDoctor } = await import('../src/commands/doctor.js');
+      await freshRunDoctor();
+
+      if (wrotePort) rmSync(portFile, { force: true });
+
+      expect(execFileSyncMock).not.toHaveBeenCalled();
+
+      vi.doUnmock('child_process');
+      vi.resetModules();
     });
   });
 });

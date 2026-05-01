@@ -11,7 +11,6 @@ export interface SetupAnswers {
   llmModel: string;
   schedulerProvider: string;
   schedulerApiKey: string;
-  profileId?: string;
   repoType: string;
   style: string;
   utmCampaign: string;
@@ -138,9 +137,6 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
       mask: '*',
     },
   ]);
-
-  // TODO: Implement profile selection by calling list_profiles()
-  // For now, skip profile selection
 
   const remainingAnswers = await inquirer.prompt<Partial<SetupAnswers>>([
     {

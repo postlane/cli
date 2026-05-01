@@ -309,8 +309,79 @@ describe('writeConfigFiles — mastodon_instance', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Item 13 — 'register' action on already-complete repo calls registerCommand
+// ---------------------------------------------------------------------------
+
+describe('initCommand — complete repo re-init with register action', () => {
+  it('calls registerCommand automatically instead of printing manual instruction', async () => {
+    const { vi } = await import('vitest');
+    vi.resetModules();
+
+    let registerCalled = false;
+    vi.doMock('../src/commands/register.js', () => ({
+      registerCommand: async () => { registerCalled = true; },
+    }));
+    vi.doMock('inquirer', () => ({
+      default: { prompt: async () => ({ action: 'register' }) },
+    }));
+
+    const tmpDir = join(tmpdir(), `postlane-init13-${Date.now()}`);
+    mkdirSync(join(tmpDir, '.git'), { recursive: true });
+    mkdirSync(join(tmpDir, '.postlane'), { recursive: true });
+    mkdirSync(join(tmpDir, '.claude', 'commands'), { recursive: true });
+    writeFileSync(join(tmpDir, '.postlane', 'config.json'), '{}');
+    writeFileSync(join(tmpDir, '.claude', 'commands', 'draft-post.md'), '');
+    writeFileSync(join(tmpDir, '.claude', 'commands', 'register-repo.md'), '');
+
+    const origCwd = process.cwd();
+    process.chdir(tmpDir);
+    try {
+      const { initCommand } = await import('../src/commands/init.js');
+      await initCommand({});
+      expect(registerCalled).toBe(true);
+    } finally {
+      process.chdir(origCwd);
+      rmSync(tmpDir, { recursive: true, force: true });
+      vi.doUnmock('../src/commands/register.js');
+      vi.doUnmock('inquirer');
+      vi.resetModules();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Issue 2 — askSetupQuestions includes mastodonInstance in --defaults mode
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Item 21 — profileId removed from SetupAnswers (dead code path)
+// ---------------------------------------------------------------------------
+
+describe('writeConfigFiles — no profile_id written (field removed)', () => {
+  let repoDir: string;
+
+  beforeEach(() => {
+    repoDir = join(tmpdir(), `postlane-item21-${Date.now()}`);
+    mkdirSync(repoDir, { recursive: true });
+    mkdirSync(join(repoDir, '.git'), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it('does not write profile_id to config.json', () => {
+    writeConfigFiles(repoDir, MINIMAL_ANSWERS);
+    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
+    expect(config.scheduler.profile_id).toBeUndefined();
+  });
+
+  it('SetupAnswers type has no profileId field', async () => {
+    const { askSetupQuestions } = await import('../src/utils/questions.js');
+    const answers = await askSetupQuestions(true);
+    expect(Object.keys(answers)).not.toContain('profileId');
+  });
+});
 
 describe('askSetupQuestions — mastodon instance (useDefaults)', () => {
   it('returns mastodonInstance when default platforms include mastodon', async () => {
