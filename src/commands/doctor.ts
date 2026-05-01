@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { existsSync, readFileSync } from 'fs';
-import { execFileSync } from 'child_process';
 import { homedir } from 'os';
 import { join } from 'path';
 import chalk from 'chalk';
@@ -35,7 +34,7 @@ const KNOWN_INSTALL_PATHS: Record<string, string[]> = {
   ],
 };
 
-export function runDoctor(): Check[] {
+export async function runDoctor(): Promise<Check[]> {
   const checks: Check[] = [];
   const targetDir = process.cwd();
 
@@ -93,8 +92,11 @@ export function runDoctor(): Check[] {
       if (isValidPort(portStr)) {
         const healthUrl = `http://127.0.0.1:${portStr}/health`;
         try {
-          execFileSync('curl', ['-s', '-m', '0.2', healthUrl], { stdio: 'pipe' });
-          appRunning = true;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 200);
+          const response = await fetch(healthUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (response.ok) appRunning = true;
         } catch {
           // Health check failed — app not running
         }
@@ -197,7 +199,7 @@ export function getExitCode(checks: Check[]): number {
 export async function doctorCommand() {
   console.log(chalk.blue('Running Postlane health checks...\n'));
 
-  const checks = runDoctor();
+  const checks = await runDoctor();
 
   for (const check of checks) {
     if (check.passed) {
