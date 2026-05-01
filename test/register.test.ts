@@ -228,6 +228,44 @@ describe('postlane register', () => {
     });
   });
 
+  describe('port file validation', () => {
+    it('logs a warning and skips the health check when port file contains a non-integer', async () => {
+      vi.resetModules();
+      vi.doMock('fs', async () => {
+        const actual = await vi.importActual<typeof import('fs')>('fs');
+        return {
+          ...actual,
+          existsSync: (p: string) => {
+            if (String(p).endsWith('.git')) return true;
+            if (String(p).endsWith('port')) return true;
+            if (String(p).endsWith('Postlane.app') || String(p).includes('postlane')) return false;
+            return actual.existsSync(p);
+          },
+          readFileSync: (p: Parameters<typeof actual.readFileSync>[0], ...rest: Parameters<typeof actual.readFileSync>[1][]) => {
+            if (String(p).endsWith('port')) return 'not-a-port';
+            return (actual.readFileSync as Function)(p, ...rest);
+          },
+        };
+      });
+
+      const { registerCommand: freshRegister } = await import('../src/commands/register.js');
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleLogs: string[] = [];
+      const originalLog = console.log;
+      console.log = (...args: unknown[]) => { consoleLogs.push(args.join(' ')); };
+
+      try { await freshRegister(); } catch { /* process.exit */ }
+
+      console.log = originalLog;
+      vi.doUnmock('fs');
+      vi.resetModules();
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('port'));
+      warnSpy.mockRestore();
+    });
+  });
+
   describe('error logging — no stack traces', () => {
     it('logs error message string (not Error object) on unexpected failure', async () => {
       // Trigger the outer catch by making writeFileSync throw inside handleInstalledState.
