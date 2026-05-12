@@ -6,8 +6,9 @@ import { join } from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { askSetupQuestions } from '../utils/questions.js';
-import { writeConfigFiles, checkPartialInit, repairPartialInit } from '../utils/files.js';
-import { detectGitProvider } from '../utils/git_provider.js';
+import { writeConfigFiles, writeGitHubConfigFiles, checkPartialInit, repairPartialInit } from '../utils/files.js';
+import { detectGitProvider, extractOrgLogin } from '../utils/git_provider.js';
+import { fetchGitHubProjectConfig, readAppSessionInfo } from '../utils/github_project_config.js';
 import { registerCommand } from './register.js';
 
 interface InitOptions {
@@ -127,16 +128,30 @@ export async function initCommand(options: InitOptions) {
     console.log(chalk.gray('This will configure Postlane for this repository.\n'));
 
     const provider = detectGitProvider(targetDir);
-    // 20.6.8: GitHub repos will pull config from server and skip this prompt block.
-    // GitLab, self-hosted, and repos with no remote always use the interactive flow.
-    void provider; // referenced here; branching added in 20.6.8
 
-    // Ask setup questions
+    if (provider === 'github') {
+      const session = readAppSessionInfo();
+      if (session) {
+        const orgLogin = extractOrgLogin(targetDir);
+        const config = orgLogin
+          ? await fetchGitHubProjectConfig(orgLogin, session.port, session.token)
+          : null;
+        if (config) {
+          writeGitHubConfigFiles(targetDir, config.project_id, config.project_name);
+          console.log(chalk.green('\n✓ Setup complete!'));
+          console.log(chalk.blue('\nRegistering with Postlane app...'));
+          await registerCommand();
+          console.log(chalk.gray('\nInvoke /draft-post in your IDE to draft your first post.'));
+          console.log(chalk.gray('postlane.dev/docs/credentials'));
+          return;
+        }
+      }
+      console.log(chalk.yellow('GitHub project not found in the running Postlane app — running interactive setup.'));
+    }
+
+    // Interactive flow for GitLab, self-hosted, and GitHub fallback
     const answers = await askSetupQuestions(options.defaults || false, options.noAttribution || false);
-
-    // Write all config files
     writeConfigFiles(targetDir, answers);
-
     console.log(chalk.green('\n✓ Setup complete!'));
 
     // Step 9: Automatically call postlane register

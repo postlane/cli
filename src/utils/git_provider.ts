@@ -29,6 +29,24 @@ function domainFromUrl(url: string): string {
   return '';
 }
 
+/// Extracts the first path segment (org login) from the origin remote URL.
+/// Returns null when the .git/config is absent or unparseable.
+export function extractOrgLogin(repoPath: string): string | null {
+  const gitConfigPath = join(repoPath, '.git', 'config');
+  if (!existsSync(gitConfigPath)) return null;
+  const content = readFileSync(gitConfigPath, 'utf-8');
+  const url = originRemoteUrl(content);
+  if (!url) return null;
+  const cleaned = url.trim().replace(/\.git$/, '');
+  // HTTPS: https://github.com/org/repo
+  const httpsMatch = /^https?:\/\/[^/]+\/([^/]+)/.exec(cleaned);
+  if (httpsMatch) return httpsMatch[1];
+  // SSH: git@github.com:org/repo
+  const sshMatch = /^[^@]+@[^:]+:([^/]+)/.exec(cleaned);
+  if (sshMatch) return sshMatch[1];
+  return null;
+}
+
 /// Detects the Git hosting provider for the repo at `repoPath` by reading the
 /// origin remote URL from `.git/config`.  Returns `'other'` when no remote is
 /// configured or the `.git` directory is absent.

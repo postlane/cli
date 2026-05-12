@@ -24,6 +24,33 @@ describe('postlane CLI', () => {
     expect(output.trim()).toBe('0.0.1');
   });
 
+  it('reports the correct version from package.json', async () => {
+    const { createRequire } = await import('module');
+    const { fileURLToPath } = await import('url');
+    const { dirname, join: pathJoin } = await import('path');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const req = createRequire(import.meta.url);
+    const pkg = req(pathJoin(__dirname, '../package.json')) as { version: string };
+
+    const output = execSync('node dist/index.js --version', { encoding: 'utf-8' });
+    expect(output.trim()).toBe(pkg.version);
+  });
+
+  it('src/index.ts reads version from package.json (not hardcoded)', async () => {
+    const { readFileSync } = await import('fs');
+    const { fileURLToPath } = await import('url');
+    const { dirname, join: pathJoin } = await import('path');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const src = readFileSync(pathJoin(__dirname, '../src/index.ts'), 'utf8');
+
+    // Must not have a hardcoded version string like .version('0.0.1')
+    expect(src).not.toMatch(/\.version\(\s*['"][0-9]+\.[0-9]+\.[0-9]+['"]\s*\)/);
+    // Must import from package.json (with or without import attributes)
+    expect(src).toMatch(/['"]\.\.\/package\.json['"]/);
+  });
+
   it('should not error when mkdirSync recursive is called on existing directory', () => {
     // Setup: Create a temp directory
     const testDir = join(tmpdir(), `postlane-test-${Date.now()}`);

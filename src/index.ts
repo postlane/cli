@@ -5,13 +5,16 @@ import { Command } from 'commander';
 import { initCommand } from './commands/init.js';
 import { registerCommand } from './commands/register.js';
 import { doctorCommand } from './commands/doctor.js';
+import pkg from '../package.json' with { type: 'json' };
+
+const { version } = pkg;
 
 const program = new Command();
 
 program
   .name('postlane')
   .description('Postlane CLI - Social media post scheduling')
-  .version('0.0.1');
+  .version(version);
 
 program
   .command('init')

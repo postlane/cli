@@ -276,6 +276,129 @@ describe('postlane doctor', () => {
       const schedulerCheck = checks.find((c) => c.name === 'scheduler-api');
       expect(schedulerCheck?.passed).toBe(false);
     });
+
+    it('marks scheduler-api as skipped when not yet implemented', async () => {
+      const checks = await runDoctor();
+      const schedulerCheck = checks.find((c) => c.name === 'scheduler-api');
+      expect(schedulerCheck?.status).toBe('skipped');
+    });
+  });
+
+  describe('session token readability check', () => {
+    it('marks token-file check as failed when file exists but is unreadable', async () => {
+      vi.resetModules();
+
+      vi.doMock('fs', async () => {
+        const actual = await vi.importActual<typeof import('fs')>('fs');
+        return {
+          ...actual,
+          readFileSync: (p: Parameters<typeof actual.readFileSync>[0], ...rest: Parameters<typeof actual.readFileSync>[1][]) => {
+            if (String(p).endsWith('session.token')) {
+              const err = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+              throw err;
+            }
+            return (actual.readFileSync as (...args: unknown[]) => unknown)(p, ...rest);
+          },
+          existsSync: (p: string) => {
+            if (String(p).endsWith('session.token')) return true;
+            return actual.existsSync(p);
+          },
+        };
+      });
+
+      const { runDoctor: freshRunDoctor } = await import('../src/commands/doctor.js');
+      const checks = await freshRunDoctor();
+
+      vi.doUnmock('fs');
+      vi.resetModules();
+
+      const tokenCheck = checks.find((c) => c.name === 'session-token');
+      expect(tokenCheck?.passed).toBe(false);
+    });
+  });
+
+  describe('config.json in .gitignore check (20.9.6 / 20.9.13)', () => {
+    it('fails if config.json appears in .postlane/.gitignore', async () => {
+      const postlaneDir = join(testDir, '.postlane');
+      mkdirSync(postlaneDir, { recursive: true });
+      writeFileSync(join(postlaneDir, 'config.json'), '{"version":1}');
+      writeFileSync(join(postlaneDir, '.gitignore'), 'config.json\n');
+
+      const checks = await runDoctor();
+      const check = checks.find((c) => c.name === 'config-in-gitignore');
+      expect(check?.passed).toBe(false);
+      expect(check?.fix).toMatch(/config\.local\.json/);
+    });
+
+    it('passes if config.json is not in .postlane/.gitignore', async () => {
+      const postlaneDir = join(testDir, '.postlane');
+      mkdirSync(postlaneDir, { recursive: true });
+      writeFileSync(join(postlaneDir, 'config.json'), '{"version":1}');
+      writeFileSync(join(postlaneDir, '.gitignore'), 'config.local.json\n');
+
+      const checks = await runDoctor();
+      const check = checks.find((c) => c.name === 'config-in-gitignore');
+      expect(check?.passed).toBe(true);
+    });
+
+    it('passes if no .postlane/.gitignore exists', async () => {
+      const checks = await runDoctor();
+      const check = checks.find((c) => c.name === 'config-in-gitignore');
+      expect(check?.passed).toBe(true);
+    });
+  });
+
+  describe('config.local.json tracked by git check (20.9.9 / 20.9.15)', () => {
+    it('fails if config.local.json is tracked by git', async () => {
+      vi.resetModules();
+      vi.doMock('child_process', async () => {
+        const actual = await vi.importActual<typeof import('child_process')>('child_process');
+        return {
+          ...actual,
+          execFileSync: (cmd: string, args: string[]) => {
+            if (cmd === 'git' && Array.isArray(args) && args.includes('ls-files')) {
+              return '.postlane/config.local.json\n';
+            }
+            return (actual.execFileSync as (...a: unknown[]) => unknown)(cmd, args);
+          },
+        };
+      });
+
+      const { runDoctor: freshRunDoctor } = await import('../src/commands/doctor.js');
+      const checks = await freshRunDoctor();
+
+      vi.doUnmock('child_process');
+      vi.resetModules();
+
+      const check = checks.find((c) => c.name === 'local-config-untracked');
+      expect(check?.passed).toBe(false);
+      expect(check?.fix).toMatch(/git rm --cached/);
+    });
+
+    it('passes if config.local.json is not tracked', async () => {
+      vi.resetModules();
+      vi.doMock('child_process', async () => {
+        const actual = await vi.importActual<typeof import('child_process')>('child_process');
+        return {
+          ...actual,
+          execFileSync: (cmd: string, args: string[]) => {
+            if (cmd === 'git' && Array.isArray(args) && args.includes('ls-files')) {
+              return '';
+            }
+            return (actual.execFileSync as (...a: unknown[]) => unknown)(cmd, args);
+          },
+        };
+      });
+
+      const { runDoctor: freshRunDoctor } = await import('../src/commands/doctor.js');
+      const checks = await freshRunDoctor();
+
+      vi.doUnmock('child_process');
+      vi.resetModules();
+
+      const check = checks.find((c) => c.name === 'local-config-untracked');
+      expect(check?.passed).toBe(true);
+    });
   });
 
   describe('health check — uses fetch not curl', () => {
@@ -300,7 +423,10 @@ describe('postlane doctor', () => {
 
       if (wrotePort) rmSync(portFile, { force: true });
 
-      expect(execFileSyncMock).not.toHaveBeenCalled();
+      const curlCalls = execFileSyncMock.mock.calls.filter(
+        (args: unknown[]) => args[0] === 'curl' || args[0] === 'wget',
+      );
+      expect(curlCalls).toHaveLength(0);
 
       vi.doUnmock('child_process');
       vi.resetModules();

@@ -52,26 +52,48 @@ describe('postlane register', () => {
 
   describe('detectAppState', () => {
     it('should return "not-installed" when no port file and no app installed', async () => {
-      // Import and test detectAppState indirectly through registerCommand
-      // Since detectAppState is not exported, we test the behavior through the command
-      const { registerCommand } = await import('../src/commands/register.js');
+      vi.resetModules();
 
-      // Mock console.log to capture output
+      const fakeHome = join(tmpdir(), `postlane-detect-home-${Date.now()}`);
+      mkdirSync(join(fakeHome, '.postlane'), { recursive: true });
+
+      vi.doMock('os', async () => {
+        const actual = await vi.importActual<typeof import('os')>('os');
+        return { ...actual, homedir: () => fakeHome };
+      });
+      vi.doMock('fs', async () => {
+        const actual = await vi.importActual<typeof import('fs')>('fs');
+        return {
+          ...actual,
+          existsSync: (p: string) => {
+            if (String(p) === join(testDir, '.git')) return true;
+            if (String(p).includes('/Applications/Postlane.app')) return false;
+            if (String(p).includes('Programs\\Postlane')) return false;
+            if (String(p).includes('/usr/bin/postlane') || String(p).includes('/usr/local/bin/postlane')) return false;
+            return actual.existsSync(p);
+          },
+        };
+      });
+
+      const { registerCommand: freshRegister } = await import('../src/commands/register.js');
+
       const logs: string[] = [];
-      const originalLog = console.log;
-      console.log = (...args: any[]) => {
-        logs.push(args.join(' '));
-      };
+      const logSpy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+        logs.push(args.map(String).join(' '));
+      });
 
       try {
-        await registerCommand();
-      } catch (error) {
-        // Command may exit, that's OK
+        await freshRegister();
+      } catch {
+        // process.exit throws, that's OK
       }
 
-      console.log = originalLog;
+      logSpy.mockRestore();
+      vi.doUnmock('os');
+      vi.doUnmock('fs');
+      vi.resetModules();
+      rmSync(fakeHome, { recursive: true, force: true });
 
-      // Should print not-installed message
       const output = logs.join('\n');
       expect(output).toContain('ready for Postlane');
       expect(output).toContain('postlane.dev/download');
@@ -313,6 +335,62 @@ describe('postlane register', () => {
       exitSpy.mockRestore();
       vi.doUnmock('fs');
       vi.resetModules();
+    });
+  });
+
+  describe('repos.json schema validation', () => {
+    it('rejects malformed repos.json with a clear error message', async () => {
+      vi.resetModules();
+
+      const fakeHome = join(tmpdir(), `postlane-malformed-home-${Date.now()}`);
+      mkdirSync(join(fakeHome, '.postlane'), { recursive: true });
+      writeFileSync(
+        join(fakeHome, '.postlane', 'repos.json'),
+        JSON.stringify({ repos: 'not-an-array' }),
+      );
+
+      vi.doMock('os', async () => {
+        const actual = await vi.importActual<typeof import('os')>('os');
+        return { ...actual, homedir: () => fakeHome };
+      });
+
+      vi.doMock('fs', async () => {
+        const actual = await vi.importActual<typeof import('fs')>('fs');
+        return {
+          ...actual,
+          existsSync: (p: string) => {
+            if (String(p).endsWith('.git')) return true;
+            // Simulate macOS Postlane.app installed so we take the installed branch
+            if (String(p) === '/Applications/Postlane.app') return true;
+            return actual.existsSync(p);
+          },
+        };
+      });
+
+      const { registerCommand: freshRegister } = await import('../src/commands/register.js');
+
+      const errorMessages: string[] = [];
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+        errorMessages.push(args.map(String).join(' '));
+      });
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('exit'); });
+
+      try {
+        await freshRegister();
+      } catch {
+        // swallow process.exit throw
+      }
+
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+      vi.doUnmock('fs');
+      vi.doUnmock('os');
+      vi.resetModules();
+      rmSync(fakeHome, { recursive: true, force: true });
+
+      const combined = errorMessages.join('\n');
+      expect(combined).toMatch(/repos\.json/);
+      expect(combined).toMatch(/invalid|corrupt|schema|array/i);
     });
   });
 
