@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-import { mkdirSync, existsSync } from 'fs';
+import { mkdirSync, lstatSync, readdirSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { askSetupQuestions } from '../utils/questions.js';
 import { writeConfigFiles, checkPartialInit, repairPartialInit } from '../utils/files.js';
+import { detectGitProvider } from '../utils/git_provider.js';
 import { registerCommand } from './register.js';
 
 interface InitOptions {
@@ -30,13 +31,33 @@ export async function initCommand(options: InitOptions) {
       process.exit(1);
     }
 
-    // Validate git repository
+    // Validate git repository or workspace root — reject symlinks to prevent path traversal
     const targetDir = process.cwd();
     const gitDir = join(targetDir, '.git');
-    if (!existsSync(gitDir)) {
+    let gitStat: ReturnType<typeof lstatSync> | null = null;
+    try {
+      gitStat = lstatSync(gitDir);
+    } catch {
+      gitStat = null;
+    }
+    if (gitStat && !gitStat.isDirectory()) {
+      // .git exists but is a symlink or file — reject
       console.error(chalk.red(`Error: ${targetDir} is not a git repository.`));
-      console.error(chalk.yellow('Run postlane init from inside a git repo.'));
+      console.error(chalk.yellow('Run postlane init from inside a git repo or workspace root.'));
       process.exit(1);
+    }
+    if (!gitStat) {
+      // No .git — accept only if immediate children contain git repos (workspace root)
+      const hasChildRepos = readdirSync(targetDir, { withFileTypes: true })
+        .filter(e => e.isDirectory() && !e.isSymbolicLink())
+        .some(e => {
+          try { return lstatSync(join(targetDir, e.name, '.git')).isDirectory(); } catch { return false; }
+        });
+      if (!hasChildRepos) {
+        console.error(chalk.red(`Error: ${targetDir} is not a git repository.`));
+        console.error(chalk.yellow('Run postlane init from inside a git repo or a workspace root containing child repos.'));
+        process.exit(1);
+      }
     }
 
     // Check for partial init
@@ -104,6 +125,11 @@ export async function initCommand(options: InitOptions) {
 
     console.log(chalk.blue('Postlane setup started...'));
     console.log(chalk.gray('This will configure Postlane for this repository.\n'));
+
+    const provider = detectGitProvider(targetDir);
+    // 20.6.8: GitHub repos will pull config from server and skip this prompt block.
+    // GitLab, self-hosted, and repos with no remote always use the interactive flow.
+    void provider; // referenced here; branching added in 20.6.8
 
     // Ask setup questions
     const answers = await askSetupQuestions(options.defaults || false, options.noAttribution || false);
