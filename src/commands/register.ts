@@ -91,6 +91,7 @@ async function detectAppState(): Promise<AppState> {
       console.warn(`[postlane] port file contains invalid port value '${port}' — skipping health check`);
     } else {
       try {
+        // loopback only — HTTPS not available on localhost
         const healthUrl = `http://127.0.0.1:${port}/health`;
 
         const controller = new AbortController();
@@ -175,10 +176,27 @@ function handleInstalledState(repoPath: string, repoName: string): void {
   if (existsSync(reposPath)) {
     try {
       const content = readFileSync(reposPath, 'utf-8');
-      config = JSON.parse(content);
+      const parsed: unknown = JSON.parse(content);
+      if (
+        typeof parsed !== 'object' ||
+        parsed === null ||
+        !('version' in parsed) ||
+        (parsed as Record<string, unknown>).version !== 1 ||
+        !Array.isArray((parsed as Record<string, unknown>).repos)
+      ) {
+        throw new Error(
+          `repos.json at ${reposPath} has an invalid schema: expected { version: 1, repos: [...] }. ` +
+          'Delete the file and run `postlane register` again to recreate it.',
+        );
+      }
+      config = parsed as ReposConfig;
     } catch (error) {
-      console.warn(chalk.yellow('Warning: Could not read repos.json, creating new file'));
-      config = { version: 1, repos: [] };
+      if (error instanceof SyntaxError) {
+        console.warn(chalk.yellow(`Warning: repos.json at ${reposPath} is not valid JSON. Creating new file.`));
+        config = { version: 1, repos: [] };
+      } else {
+        throw error;
+      }
     }
   } else {
     config = { version: 1, repos: [] };

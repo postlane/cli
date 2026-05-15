@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { existsSync, readFileSync } from 'fs';
+import { execFileSync } from 'child_process';
 import { homedir } from 'os';
 import { join } from 'path';
 import chalk from 'chalk';
@@ -15,6 +16,7 @@ interface Check {
   name: string;
   description: string;
   passed: boolean;
+  status?: 'skipped';
   fix?: string;
 }
 
@@ -139,7 +141,13 @@ export async function runDoctor(): Promise<Check[]> {
 
   // Check 5: Is ~/.postlane/session.token readable?
   const tokenPath = join(postlaneDir, 'session.token');
-  const tokenReadable = existsSync(tokenPath);
+  let tokenReadable = false;
+  try {
+    readFileSync(tokenPath, 'utf8');
+    tokenReadable = true;
+  } catch {
+    tokenReadable = false;
+  }
 
   checks.push({
     name: 'session-token',
@@ -148,16 +156,12 @@ export async function runDoctor(): Promise<Check[]> {
     fix: tokenReadable ? undefined : 'Restart the Postlane app to regenerate the session token.',
   });
 
-  // Check 6: Scheduler API connectivity (not yet testable without live HTTP round-trip)
+  // Check 6: Scheduler API connectivity (not yet implemented — skipped until v1.2)
   checks.push({
     name: 'scheduler-api',
     description: 'Scheduler API reachable',
     passed: false,
-    fix: appRunning && configValid
-      ? 'Open Postlane Settings → Scheduler to verify your API key.'
-      : appRunning
-        ? 'Check your API key in Postlane Settings → Scheduler.'
-        : 'Start the Postlane app first to test scheduler connectivity.',
+    status: 'skipped',
   });
 
   // Check 7: Are all expected skill files present in .claude/commands/?
@@ -189,11 +193,53 @@ export async function runDoctor(): Promise<Check[]> {
       : `Missing skill files: ${missingSkillFiles.join(', ')}. Run \`npx postlane init --update-skills\` to refresh. (Note: --update-skills is coming in v1.1)`,
   });
 
+  // Check 8: Is config.json in .postlane/.gitignore? (v1 migration warning)
+  const postlaneGitignorePath = join(targetDir, '.postlane', '.gitignore');
+  let configInGitignore = false;
+  if (existsSync(postlaneGitignorePath)) {
+    const lines = readFileSync(postlaneGitignorePath, 'utf-8')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#'));
+    configInGitignore = lines.some((l) => l === 'config.json');
+  }
+
+  checks.push({
+    name: 'config-in-gitignore',
+    description: 'config.json not in .gitignore',
+    passed: !configInGitignore,
+    fix: configInGitignore
+      ? 'Remove config.json from .gitignore and add config.local.json instead. Run `npx postlane init` to migrate.'
+      : undefined,
+  });
+
+  // Check 9: Is config.local.json tracked by git? (should be git-ignored)
+  let localConfigTracked = false;
+  try {
+    const output = execFileSync(
+      'git',
+      ['ls-files', '--cached', '--', '.postlane/config.local.json'],
+      { cwd: targetDir, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+    localConfigTracked = output.trim().length > 0;
+  } catch {
+    localConfigTracked = false;
+  }
+
+  checks.push({
+    name: 'local-config-untracked',
+    description: 'config.local.json not tracked by git',
+    passed: !localConfigTracked,
+    fix: localConfigTracked
+      ? 'Run `git rm --cached .postlane/config.local.json` and add it to .gitignore.'
+      : undefined,
+  });
+
   return checks;
 }
 
 export function getExitCode(checks: Check[]): number {
-  return checks.every(c => c.passed) ? 0 : 1;
+  return checks.every(c => c.passed || c.status === 'skipped') ? 0 : 1;
 }
 
 export async function doctorCommand() {
@@ -202,7 +248,9 @@ export async function doctorCommand() {
   const checks = await runDoctor();
 
   for (const check of checks) {
-    if (check.passed) {
+    if (check.status === 'skipped') {
+      console.log(chalk.gray('–'), check.description, chalk.gray('(skipped)'));
+    } else if (check.passed) {
       console.log(chalk.green('✓'), check.description);
     } else {
       console.log(chalk.red('✗'), check.description);

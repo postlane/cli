@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync, existsSync, copyFileSync } from 'fs';
 import { join, dirname, isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
-import type { SetupAnswers } from './questions.js';
+import type { SetupAnswers } from '../init/questions.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -33,20 +33,22 @@ const ALL_SKILL_COMMANDS = [
 
 export interface ConfigJson {
   version: number;
-  base_url: string;
   platforms: string[];
   mastodon_instance?: string;
   llm: {
     provider: string;
     model: string;
   };
-  scheduler: {
-    provider: string;
-  };
   repo_type: string;
   style: string;
   utm_campaign: string;
   author: string;
+}
+
+export interface ConfigLocalJson {
+  scheduler: {
+    provider: string;
+  };
 }
 
 export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void {
@@ -66,20 +68,16 @@ export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void
   // Step 1: Create .postlane directory
   mkdirSync(postlaneDir, { recursive: true });
 
-  // Step 2: Write config.json
+  // Step 2: Write config.json (shared, committed to git)
   const hasMastodon = answers.platforms.includes('mastodon');
 
   const config: ConfigJson & { attribution?: boolean } = {
     version: 1,
-    base_url: answers.baseUrl,
     platforms: answers.platforms,
     ...(hasMastodon && answers.mastodonInstance ? { mastodon_instance: answers.mastodonInstance } : {}),
     llm: {
       provider: answers.llmProvider,
       model: answers.llmModel,
-    },
-    scheduler: {
-      provider: answers.schedulerProvider,
     },
     repo_type: answers.repoType,
     style: answers.style,
@@ -96,11 +94,25 @@ export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void
     'utf-8'
   );
 
+  // Step 2b: Write config.local.json (per-user, git-ignored)
+  const localConfig: ConfigLocalJson = {
+    scheduler: {
+      provider: answers.schedulerProvider,
+    },
+  };
+
+  writeFileSync(
+    join(postlaneDir, 'config.local.json'),
+    JSON.stringify(localConfig, null, 2),
+    'utf-8'
+  );
+
   // Step 3: Write .gitignore
   const gitignoreContent = `# Postlane
 runner/node_modules/
 runner/dist/
 posts/**/original.json
+config.local.json
 `;
 
   writeFileSync(
@@ -111,9 +123,51 @@ posts/**/original.json
 
   // Steps 4-8: Copy bundled skill files.
   // .claude/commands/ — Claude Code slash commands (read by Claude Code on launch)
-  // .postlane/commands/ — Continue .prompt files and other IDE formats
-  // .postlane/prompts/ — preview template
-  // .postlane/runner/ — standalone runner
+  // Steps 4-8: Copy skill files (shared with writeGitHubConfigFiles)
+  copySkillFiles(targetDir, postlaneDir);
+}
+
+/// Writes config files for a GitHub App repo without interactive prompts.
+/// Uses sensible defaults and stores the server-provided `projectId`.
+/// Skill files and .gitignore are written identically to the regular flow.
+export function writeGitHubConfigFiles(
+  targetDir: string,
+  projectId: string,
+  projectName: string,
+): void {
+  if (!isAbsolute(targetDir)) {
+    throw new Error(`targetDir must be an absolute path, got: ${targetDir}`);
+  }
+
+  const postlaneDir = join(targetDir, '.postlane');
+  mkdirSync(postlaneDir, { recursive: true });
+
+  const config = {
+    version: 1,
+    project_id: projectId,
+    platforms: ['x', 'bluesky'],
+    llm: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+    repo_type: 'open-source-library',
+    style: 'Direct, technically precise.',
+    utm_campaign: '',
+    author: projectName,
+  };
+
+  writeFileSync(join(postlaneDir, 'config.json'), JSON.stringify(config, null, 2), 'utf-8');
+
+  const localConfig: ConfigLocalJson = { scheduler: { provider: 'zernio' } };
+  writeFileSync(join(postlaneDir, 'config.local.json'), JSON.stringify(localConfig, null, 2), 'utf-8');
+
+  writeFileSync(
+    join(postlaneDir, '.gitignore'),
+    `# Postlane\nrunner/node_modules/\nrunner/dist/\nposts/**/original.json\nconfig.local.json\n`,
+    'utf-8',
+  );
+
+  copySkillFiles(targetDir, postlaneDir);
+}
+
+function copySkillFiles(targetDir: string, postlaneDir: string): void {
   const claudeCommandsDir = join(targetDir, '.claude', 'commands');
   const postlaneCommandsDir = join(postlaneDir, 'commands');
   const promptsDir = join(postlaneDir, 'prompts');
@@ -124,13 +178,11 @@ posts/**/original.json
   mkdirSync(promptsDir, { recursive: true });
   mkdirSync(runnerDir, { recursive: true });
 
-  // Get the directory where the CLI is installed
   const cliDir = join(__dirname, '..', '..');
   const bundledSkillsDir = join(cliDir, 'bundled-skills');
   const bundledCommandsDir = join(bundledSkillsDir, 'commands');
   const bundledRunnerDir = join(bundledSkillsDir, 'runner');
 
-  // Copy skill files if they exist in bundled-skills
   const filesToCopy: Array<{ from: string; to: string }> = [
     ...ALL_SKILL_COMMANDS.flatMap((cmd) => [
       { from: join(bundledCommandsDir, `${cmd}.md`), to: join(claudeCommandsDir, `${cmd}.md`) },
@@ -144,7 +196,6 @@ posts/**/original.json
     if (existsSync(from)) {
       copyFileSync(from, to);
     } else {
-      // Create placeholder files for now
       writeFileSync(to, `<!-- Placeholder for ${from} -->\n`, 'utf-8');
     }
   }

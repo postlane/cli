@@ -4,7 +4,6 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 
 export interface SetupAnswers {
-  baseUrl: string;
   platforms: string[];
   mastodonInstance?: string;
   llmProvider: string;
@@ -21,7 +20,6 @@ export interface SetupAnswers {
 export async function askSetupQuestions(useDefaults: boolean, noAttribution = false): Promise<SetupAnswers> {
   if (useDefaults) {
     return {
-      baseUrl: 'https://example.com',
       platforms: ['x', 'bluesky', 'mastodon'],
       mastodonInstance: 'mastodon.social',
       llmProvider: 'anthropic',
@@ -37,18 +35,6 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
   }
 
   const answers = await inquirer.prompt<Partial<SetupAnswers>>([
-    {
-      type: 'input',
-      name: 'baseUrl',
-      message: 'Base URL for your project:',
-      default: 'https://example.com',
-      validate: (input: string) => {
-        if (!input.startsWith('https://')) {
-          return 'URL must start with https://';
-        }
-        return true;
-      },
-    },
     {
       type: 'input',
       name: 'platforms',

@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { writeConfigFiles, validatePlatforms } from '../src/utils/files.js';
+import { writeConfigFiles, validatePlatforms } from '../src/init/config_writer.js';
 
 // All 9 v1.1 commands (§7.6.1 requires 18 files = 9 × 2)
 const V1_1_COMMANDS = [
@@ -28,7 +28,6 @@ const BASE_COMMANDS = [
 const ALL_COMMANDS = [...BASE_COMMANDS, ...V1_1_COMMANDS];
 
 const MINIMAL_ANSWERS = {
-  baseUrl: 'https://example.com',
   platforms: ['x', 'bluesky'],
   llmProvider: 'anthropic',
   llmModel: 'claude-sonnet-4-6',
@@ -145,7 +144,7 @@ describe('--no-attribution flag', () => {
   });
 
   it('writes attribution: false when --no-attribution is passed with --defaults', async () => {
-    const { askSetupQuestions } = await import('../src/utils/questions.js');
+    const { askSetupQuestions } = await import('../src/init/questions.js');
     // useDefaults=true, noAttribution=true
     const answers = await askSetupQuestions(true, true);
     writeConfigFiles(repoDir, answers);
@@ -154,7 +153,7 @@ describe('--no-attribution flag', () => {
   });
 
   it('does not write attribution key when --defaults is passed without --no-attribution', async () => {
-    const { askSetupQuestions } = await import('../src/utils/questions.js');
+    const { askSetupQuestions } = await import('../src/init/questions.js');
     // useDefaults=true, noAttribution=false (default)
     const answers = await askSetupQuestions(true, false);
     writeConfigFiles(repoDir, answers);
@@ -350,6 +349,56 @@ describe('initCommand — complete repo re-init with register action', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Issue 4 — init.ts must reject a .git that is a symlink
+// ---------------------------------------------------------------------------
+
+describe('initCommand — symlink .git rejection', () => {
+  it('rejects a directory where .git is a symlink', async () => {
+    const { vi } = await import('vitest');
+    vi.resetModules();
+
+    const tmpDir = join(tmpdir(), `postlane-symlink-init-${Date.now()}`);
+    const realGit = join(tmpdir(), `postlane-real-git-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+    mkdirSync(realGit, { recursive: true });
+
+    const { symlinkSync } = await import('fs');
+    symlinkSync(realGit, join(tmpDir, '.git'));
+
+    const origCwd = process.cwd();
+    process.chdir(tmpDir);
+
+    const errorMessages: string[] = [];
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      errorMessages.push(args.map(String).join(' '));
+    });
+    let exitCalledWith: number | undefined;
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      exitCalledWith = code as number;
+      throw new Error('exit');
+    });
+
+    try {
+      const { initCommand } = await import('../src/commands/init.js');
+      await initCommand({});
+    } catch {
+      // swallow process.exit throw
+    }
+
+    errorSpy.mockRestore();
+    exitSpy.mockRestore();
+    process.chdir(origCwd);
+    rmSync(tmpDir, { recursive: true, force: true });
+    rmSync(realGit, { recursive: true, force: true });
+    vi.resetModules();
+
+    // Must reject before writing any files
+    expect(exitCalledWith).toBe(1);
+    expect(errorMessages.join('\n')).toMatch(/not a git repository/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Issue 2 — askSetupQuestions includes mastodonInstance in --defaults mode
 // ---------------------------------------------------------------------------
 
@@ -373,11 +422,11 @@ describe('writeConfigFiles — no profile_id written (field removed)', () => {
   it('does not write profile_id to config.json', () => {
     writeConfigFiles(repoDir, MINIMAL_ANSWERS);
     const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
-    expect(config.scheduler.profile_id).toBeUndefined();
+    expect(config.scheduler?.profile_id).toBeUndefined();
   });
 
   it('SetupAnswers type has no profileId field', async () => {
-    const { askSetupQuestions } = await import('../src/utils/questions.js');
+    const { askSetupQuestions } = await import('../src/init/questions.js');
     const answers = await askSetupQuestions(true);
     expect(Object.keys(answers)).not.toContain('profileId');
   });
@@ -385,9 +434,136 @@ describe('writeConfigFiles — no profile_id written (field removed)', () => {
 
 describe('askSetupQuestions — mastodon instance (useDefaults)', () => {
   it('returns mastodonInstance when default platforms include mastodon', async () => {
-    const { askSetupQuestions } = await import('../src/utils/questions.js');
+    const { askSetupQuestions } = await import('../src/init/questions.js');
     const answers = await askSetupQuestions(true);
     expect(answers.platforms).toContain('mastodon');
     expect(answers.mastodonInstance).toBe('mastodon.social');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 20.8.1 — initCommand accepts a non-git parent directory (workspace root)
+// ---------------------------------------------------------------------------
+
+describe('initCommand — workspace root (20.8.1)', () => {
+  it('accepts a non-git parent directory that contains child git repos', async () => {
+    const { vi } = await import('vitest');
+    vi.resetModules();
+
+    vi.doMock('../src/commands/register.js', () => ({
+      registerCommand: async () => {},
+    }));
+    vi.doMock('../src/init/questions.js', () => ({
+      askSetupQuestions: async () => MINIMAL_ANSWERS,
+    }));
+
+    const wsDir = join(tmpdir(), `postlane-ws-init-${Date.now()}`);
+    mkdirSync(join(wsDir, 'repo-a', '.git'), { recursive: true });
+    mkdirSync(join(wsDir, 'repo-b', '.git'), { recursive: true });
+
+    const origCwd = process.cwd();
+    process.chdir(wsDir);
+
+    const errorMessages: string[] = [];
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      errorMessages.push(args.map(String).join(' '));
+    });
+    let exitCode: number | undefined;
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      exitCode = code as number;
+      throw new Error('exit');
+    });
+
+    try {
+      const { initCommand } = await import('../src/commands/init.js');
+      await initCommand({ defaults: true });
+    } catch {
+      // swallow process.exit throw
+    }
+
+    consoleSpy.mockRestore();
+    exitSpy.mockRestore();
+    process.chdir(origCwd);
+    vi.doUnmock('../src/commands/register.js');
+    vi.doUnmock('../src/init/questions.js');
+    vi.resetModules();
+    rmSync(wsDir, { recursive: true, force: true });
+
+    expect(exitCode).not.toBe(1);
+    expect(errorMessages.join('\n')).not.toMatch(/not a git repository/i);
+  });
+
+  it('rejects a directory with no .git/ and no child git repos', async () => {
+    const { vi } = await import('vitest');
+    vi.resetModules();
+
+    const emptyDir = join(tmpdir(), `postlane-empty-init-${Date.now()}`);
+    mkdirSync(emptyDir, { recursive: true });
+
+    const origCwd = process.cwd();
+    process.chdir(emptyDir);
+
+    const errorMessages: string[] = [];
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      errorMessages.push(args.map(String).join(' '));
+    });
+    let exitCode: number | undefined;
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      exitCode = code as number;
+      throw new Error('exit');
+    });
+
+    try {
+      const { initCommand } = await import('../src/commands/init.js');
+      await initCommand({});
+    } catch {
+      // swallow process.exit throw
+    }
+
+    consoleSpy.mockRestore();
+    exitSpy.mockRestore();
+    process.chdir(origCwd);
+    rmSync(emptyDir, { recursive: true, force: true });
+    vi.resetModules();
+
+    expect(exitCode).toBe(1);
+    expect(errorMessages.join('\n')).toMatch(/not a git repository/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 20.9.12 — config.json / config.local.json split
+// ---------------------------------------------------------------------------
+
+describe('writeConfigFiles — config.local.json split (20.9)', () => {
+  let repoDir: string;
+
+  beforeEach(() => {
+    repoDir = makeTmpRepo();
+  });
+
+  afterEach(() => {
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it('writes scheduler.provider to config.local.json, not config.json', () => {
+    writeConfigFiles(repoDir, { ...MINIMAL_ANSWERS, schedulerProvider: 'zernio' });
+    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
+    const local = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.local.json'), 'utf8'));
+    expect(config.scheduler?.provider).toBeUndefined();
+    expect(local.scheduler.provider).toBe('zernio');
+  });
+
+  it('adds config.local.json to .gitignore but not config.json', () => {
+    writeConfigFiles(repoDir, MINIMAL_ANSWERS);
+    const gitignore = readFileSync(join(repoDir, '.postlane', '.gitignore'), 'utf8');
+    expect(gitignore).toContain('config.local.json');
+    expect(gitignore).not.toMatch(/\bconfig\.json\b/);
+  });
+
+  it('config.json does not contain a scheduler.provider field', () => {
+    writeConfigFiles(repoDir, MINIMAL_ANSWERS);
+    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
+    expect(config.scheduler).toBeUndefined();
   });
 });

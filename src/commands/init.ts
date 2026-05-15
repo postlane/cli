@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-import { mkdirSync, existsSync } from 'fs';
+import { mkdirSync, lstatSync, readdirSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import { askSetupQuestions } from '../utils/questions.js';
-import { writeConfigFiles, checkPartialInit, repairPartialInit } from '../utils/files.js';
+import { askSetupQuestions } from '../init/questions.js';
+import { writeConfigFiles, writeGitHubConfigFiles, checkPartialInit, repairPartialInit } from '../init/config_writer.js';
+import { detectGitProvider, extractOrgLogin } from '../git/provider.js';
+import { fetchGitHubProjectConfig, readAppSessionInfo } from '../git/github_session.js';
 import { registerCommand } from './register.js';
 
 interface InitOptions {
@@ -30,13 +32,33 @@ export async function initCommand(options: InitOptions) {
       process.exit(1);
     }
 
-    // Validate git repository
+    // Validate git repository or workspace root — reject symlinks to prevent path traversal
     const targetDir = process.cwd();
     const gitDir = join(targetDir, '.git');
-    if (!existsSync(gitDir)) {
+    let gitStat: ReturnType<typeof lstatSync> | null = null;
+    try {
+      gitStat = lstatSync(gitDir);
+    } catch {
+      gitStat = null;
+    }
+    if (gitStat && !gitStat.isDirectory()) {
+      // .git exists but is a symlink or file — reject
       console.error(chalk.red(`Error: ${targetDir} is not a git repository.`));
-      console.error(chalk.yellow('Run postlane init from inside a git repo.'));
+      console.error(chalk.yellow('Run postlane init from inside a git repo or workspace root.'));
       process.exit(1);
+    }
+    if (!gitStat) {
+      // No .git — accept only if immediate children contain git repos (workspace root)
+      const hasChildRepos = readdirSync(targetDir, { withFileTypes: true })
+        .filter(e => e.isDirectory() && !e.isSymbolicLink())
+        .some(e => {
+          try { return lstatSync(join(targetDir, e.name, '.git')).isDirectory(); } catch { return false; }
+        });
+      if (!hasChildRepos) {
+        console.error(chalk.red(`Error: ${targetDir} is not a git repository.`));
+        console.error(chalk.yellow('Run postlane init from inside a git repo or a workspace root containing child repos.'));
+        process.exit(1);
+      }
     }
 
     // Check for partial init
@@ -105,12 +127,36 @@ export async function initCommand(options: InitOptions) {
     console.log(chalk.blue('Postlane setup started...'));
     console.log(chalk.gray('This will configure Postlane for this repository.\n'));
 
-    // Ask setup questions
+    const provider = detectGitProvider(targetDir);
+
+    if (provider === 'github') {
+      const session = readAppSessionInfo();
+      if (!session) {
+        console.error(chalk.red('Sign in to Postlane first.'));
+        console.error(chalk.yellow('Open the Postlane desktop app, sign in, then run `postlane init` again.'));
+        process.exit(1);
+      }
+      const orgLogin = extractOrgLogin(targetDir);
+      const config = orgLogin
+        ? await fetchGitHubProjectConfig(orgLogin, session.port, session.token)
+        : null;
+      if (!config) {
+        console.error(chalk.red('Could not find this repository in your Postlane workspace.'));
+        console.error(chalk.yellow('Open the Postlane desktop app, connect this repo to a project, then run `postlane init` again.'));
+        process.exit(1);
+      }
+      writeGitHubConfigFiles(targetDir, config.project_id, config.project_name);
+      console.log(chalk.green('\n✓ Setup complete!'));
+      console.log(chalk.blue('\nRegistering with Postlane app...'));
+      await registerCommand();
+      console.log(chalk.gray('\nInvoke /draft-post in your IDE to draft your first post.'));
+      console.log(chalk.gray('postlane.dev/docs/credentials'));
+      return;
+    }
+
+    // Interactive flow for GitLab and self-hosted providers
     const answers = await askSetupQuestions(options.defaults || false, options.noAttribution || false);
-
-    // Write all config files
     writeConfigFiles(targetDir, answers);
-
     console.log(chalk.green('\n✓ Setup complete!'));
 
     // Step 9: Automatically call postlane register

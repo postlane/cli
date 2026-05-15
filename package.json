@@ -1,7 +1,7 @@
 {
   "name": "@postlane/cli",
-  "version": "0.0.1",
-  "description": "Postlane CLI - coming soon",
+  "version": "0.1.0",
+  "description": "Postlane CLI",
   "license": "BUSL-1.1",
   "type": "module",
   "engines": {
