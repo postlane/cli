@@ -360,8 +360,12 @@ describe('postlane register', () => {
           ...actual,
           existsSync: (p: string) => {
             if (String(p).endsWith('.git')) return true;
-            // Simulate macOS Postlane.app installed so we take the installed branch
-            if (String(p) === '/Applications/Postlane.app') return true;
+            // Simulate app installed — cover macOS, Linux, and Windows paths
+            if (
+              String(p) === '/Applications/Postlane.app' ||
+              String(p) === '/usr/bin/postlane' ||
+              String(p) === '/usr/local/bin/postlane'
+            ) return true;
             return actual.existsSync(p);
           },
         };

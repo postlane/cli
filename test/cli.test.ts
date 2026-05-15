@@ -21,7 +21,7 @@ describe('postlane CLI', () => {
 
   it('should show version with --version flag', () => {
     const output = execSync('node dist/index.js --version', { encoding: 'utf-8' });
-    expect(output.trim()).toBe('0.0.1');
+    expect(output.trim()).toBe('0.1.0');
   });
 
   it('reports the correct version from package.json', async () => {
