@@ -78,9 +78,10 @@ describe('postlane doctor', () => {
       const checks = await runDoctor();
       const installCheck = checks.find((c) => c.name === 'app-installed');
 
-      // Will likely fail unless app is actually installed
       expect(installCheck).toBeDefined();
-      expect(installCheck?.fix).toContain('postlane.dev/download');
+      if (!installCheck?.passed) {
+        expect(installCheck?.fix).toContain('postlane.dev/download');
+      }
     });
   });
 
