@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { writeConfigFiles, validatePlatforms } from '../src/utils/files.js';
+import { writeConfigFiles, validatePlatforms } from '../src/init/config_writer.js';
 
 // All 9 v1.1 commands (§7.6.1 requires 18 files = 9 × 2)
 const V1_1_COMMANDS = [
@@ -28,7 +28,6 @@ const BASE_COMMANDS = [
 const ALL_COMMANDS = [...BASE_COMMANDS, ...V1_1_COMMANDS];
 
 const MINIMAL_ANSWERS = {
-  baseUrl: 'https://example.com',
   platforms: ['x', 'bluesky'],
   llmProvider: 'anthropic',
   llmModel: 'claude-sonnet-4-6',
@@ -145,7 +144,7 @@ describe('--no-attribution flag', () => {
   });
 
   it('writes attribution: false when --no-attribution is passed with --defaults', async () => {
-    const { askSetupQuestions } = await import('../src/utils/questions.js');
+    const { askSetupQuestions } = await import('../src/init/questions.js');
     // useDefaults=true, noAttribution=true
     const answers = await askSetupQuestions(true, true);
     writeConfigFiles(repoDir, answers);
@@ -154,7 +153,7 @@ describe('--no-attribution flag', () => {
   });
 
   it('does not write attribution key when --defaults is passed without --no-attribution', async () => {
-    const { askSetupQuestions } = await import('../src/utils/questions.js');
+    const { askSetupQuestions } = await import('../src/init/questions.js');
     // useDefaults=true, noAttribution=false (default)
     const answers = await askSetupQuestions(true, false);
     writeConfigFiles(repoDir, answers);
@@ -427,7 +426,7 @@ describe('writeConfigFiles — no profile_id written (field removed)', () => {
   });
 
   it('SetupAnswers type has no profileId field', async () => {
-    const { askSetupQuestions } = await import('../src/utils/questions.js');
+    const { askSetupQuestions } = await import('../src/init/questions.js');
     const answers = await askSetupQuestions(true);
     expect(Object.keys(answers)).not.toContain('profileId');
   });
@@ -435,7 +434,7 @@ describe('writeConfigFiles — no profile_id written (field removed)', () => {
 
 describe('askSetupQuestions — mastodon instance (useDefaults)', () => {
   it('returns mastodonInstance when default platforms include mastodon', async () => {
-    const { askSetupQuestions } = await import('../src/utils/questions.js');
+    const { askSetupQuestions } = await import('../src/init/questions.js');
     const answers = await askSetupQuestions(true);
     expect(answers.platforms).toContain('mastodon');
     expect(answers.mastodonInstance).toBe('mastodon.social');
@@ -454,7 +453,7 @@ describe('initCommand — workspace root (20.8.1)', () => {
     vi.doMock('../src/commands/register.js', () => ({
       registerCommand: async () => {},
     }));
-    vi.doMock('../src/utils/questions.js', () => ({
+    vi.doMock('../src/init/questions.js', () => ({
       askSetupQuestions: async () => MINIMAL_ANSWERS,
     }));
 
@@ -486,7 +485,7 @@ describe('initCommand — workspace root (20.8.1)', () => {
     exitSpy.mockRestore();
     process.chdir(origCwd);
     vi.doUnmock('../src/commands/register.js');
-    vi.doUnmock('../src/utils/questions.js');
+    vi.doUnmock('../src/init/questions.js');
     vi.resetModules();
     rmSync(wsDir, { recursive: true, force: true });
 

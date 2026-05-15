@@ -5,10 +5,10 @@ import { homedir } from 'os';
 import { join } from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import { askSetupQuestions } from '../utils/questions.js';
-import { writeConfigFiles, writeGitHubConfigFiles, checkPartialInit, repairPartialInit } from '../utils/files.js';
-import { detectGitProvider, extractOrgLogin } from '../utils/git_provider.js';
-import { fetchGitHubProjectConfig, readAppSessionInfo } from '../utils/github_project_config.js';
+import { askSetupQuestions } from '../init/questions.js';
+import { writeConfigFiles, writeGitHubConfigFiles, checkPartialInit, repairPartialInit } from '../init/config_writer.js';
+import { detectGitProvider, extractOrgLogin } from '../git/provider.js';
+import { fetchGitHubProjectConfig, readAppSessionInfo } from '../git/github_session.js';
 import { registerCommand } from './register.js';
 
 interface InitOptions {
@@ -131,25 +131,30 @@ export async function initCommand(options: InitOptions) {
 
     if (provider === 'github') {
       const session = readAppSessionInfo();
-      if (session) {
-        const orgLogin = extractOrgLogin(targetDir);
-        const config = orgLogin
-          ? await fetchGitHubProjectConfig(orgLogin, session.port, session.token)
-          : null;
-        if (config) {
-          writeGitHubConfigFiles(targetDir, config.project_id, config.project_name);
-          console.log(chalk.green('\n✓ Setup complete!'));
-          console.log(chalk.blue('\nRegistering with Postlane app...'));
-          await registerCommand();
-          console.log(chalk.gray('\nInvoke /draft-post in your IDE to draft your first post.'));
-          console.log(chalk.gray('postlane.dev/docs/credentials'));
-          return;
-        }
+      if (!session) {
+        console.error(chalk.red('Sign in to Postlane first.'));
+        console.error(chalk.yellow('Open the Postlane desktop app, sign in, then run `postlane init` again.'));
+        process.exit(1);
       }
-      console.log(chalk.yellow('GitHub project not found in the running Postlane app — running interactive setup.'));
+      const orgLogin = extractOrgLogin(targetDir);
+      const config = orgLogin
+        ? await fetchGitHubProjectConfig(orgLogin, session.port, session.token)
+        : null;
+      if (!config) {
+        console.error(chalk.red('Could not find this repository in your Postlane workspace.'));
+        console.error(chalk.yellow('Open the Postlane desktop app, connect this repo to a project, then run `postlane init` again.'));
+        process.exit(1);
+      }
+      writeGitHubConfigFiles(targetDir, config.project_id, config.project_name);
+      console.log(chalk.green('\n✓ Setup complete!'));
+      console.log(chalk.blue('\nRegistering with Postlane app...'));
+      await registerCommand();
+      console.log(chalk.gray('\nInvoke /draft-post in your IDE to draft your first post.'));
+      console.log(chalk.gray('postlane.dev/docs/credentials'));
+      return;
     }
 
-    // Interactive flow for GitLab, self-hosted, and GitHub fallback
+    // Interactive flow for GitLab and self-hosted providers
     const answers = await askSetupQuestions(options.defaults || false, options.noAttribution || false);
     writeConfigFiles(targetDir, answers);
     console.log(chalk.green('\n✓ Setup complete!'));

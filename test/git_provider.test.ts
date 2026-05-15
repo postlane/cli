@@ -33,31 +33,31 @@ describe('detectGitProvider', () => {
 
   it('returns github for an HTTPS github.com remote', async () => {
     writeGitConfig(dir, 'https://github.com/acme/my-repo.git');
-    const { detectGitProvider } = await import('../src/utils/git_provider.js');
+    const { detectGitProvider } = await import('../src/git/provider.js');
     expect(detectGitProvider(dir)).toBe('github');
   });
 
   it('returns github for an SSH github.com remote', async () => {
     writeGitConfig(dir, 'git@github.com:acme/my-repo.git');
-    const { detectGitProvider } = await import('../src/utils/git_provider.js');
+    const { detectGitProvider } = await import('../src/git/provider.js');
     expect(detectGitProvider(dir)).toBe('github');
   });
 
   it('returns gitlab for an HTTPS gitlab.com remote', async () => {
     writeGitConfig(dir, 'https://gitlab.com/acme/my-repo.git');
-    const { detectGitProvider } = await import('../src/utils/git_provider.js');
+    const { detectGitProvider } = await import('../src/git/provider.js');
     expect(detectGitProvider(dir)).toBe('gitlab');
   });
 
   it('returns gitlab for an SSH gitlab.com remote', async () => {
     writeGitConfig(dir, 'git@gitlab.com:acme/my-repo.git');
-    const { detectGitProvider } = await import('../src/utils/git_provider.js');
+    const { detectGitProvider } = await import('../src/git/provider.js');
     expect(detectGitProvider(dir)).toBe('gitlab');
   });
 
   it('returns other for a self-hosted remote', async () => {
     writeGitConfig(dir, 'https://git.company.internal/acme/repo.git');
-    const { detectGitProvider } = await import('../src/utils/git_provider.js');
+    const { detectGitProvider } = await import('../src/git/provider.js');
     expect(detectGitProvider(dir)).toBe('other');
   });
 
@@ -65,12 +65,12 @@ describe('detectGitProvider', () => {
     const gitDir = join(dir, '.git');
     mkdirSync(gitDir, { recursive: true });
     writeFileSync(join(gitDir, 'config'), '[core]\n\trepositoryformatversion = 0\n');
-    const { detectGitProvider } = await import('../src/utils/git_provider.js');
+    const { detectGitProvider } = await import('../src/git/provider.js');
     expect(detectGitProvider(dir)).toBe('other');
   });
 
   it('returns other when there is no .git directory', async () => {
-    const { detectGitProvider } = await import('../src/utils/git_provider.js');
+    const { detectGitProvider } = await import('../src/git/provider.js');
     expect(detectGitProvider(dir)).toBe('other');
   });
 });
@@ -80,7 +80,6 @@ describe('detectGitProvider', () => {
 // ---------------------------------------------------------------------------
 
 const MINIMAL_ANSWERS = {
-  baseUrl: 'https://example.com',
   platforms: ['x', 'bluesky'],
   llmProvider: 'anthropic',
   llmModel: 'claude-sonnet-4-6',
@@ -98,7 +97,7 @@ describe('initCommand — GitLab/self-hosted run full interactive flow (20.6.7)'
     vi.resetModules();
 
     let setupQuestionsCallCount = 0;
-    vi.doMock('../src/utils/questions.js', () => ({
+    vi.doMock('../src/init/questions.js', () => ({
       askSetupQuestions: async () => { setupQuestionsCallCount++; return MINIMAL_ANSWERS; },
     }));
     vi.doMock('../src/commands/register.js', () => ({
@@ -118,7 +117,7 @@ describe('initCommand — GitLab/self-hosted run full interactive flow (20.6.7)'
     } finally {
       process.chdir(origCwd);
       rmSync(repoDir, { recursive: true, force: true });
-      vi.doUnmock('../src/utils/questions.js');
+      vi.doUnmock('../src/init/questions.js');
       vi.doUnmock('../src/commands/register.js');
       vi.resetModules();
     }
@@ -129,7 +128,7 @@ describe('initCommand — GitLab/self-hosted run full interactive flow (20.6.7)'
     vi.resetModules();
 
     let setupQuestionsCallCount = 0;
-    vi.doMock('../src/utils/questions.js', () => ({
+    vi.doMock('../src/init/questions.js', () => ({
       askSetupQuestions: async () => { setupQuestionsCallCount++; return MINIMAL_ANSWERS; },
     }));
     vi.doMock('../src/commands/register.js', () => ({
@@ -149,7 +148,7 @@ describe('initCommand — GitLab/self-hosted run full interactive flow (20.6.7)'
     } finally {
       process.chdir(origCwd);
       rmSync(repoDir, { recursive: true, force: true });
-      vi.doUnmock('../src/utils/questions.js');
+      vi.doUnmock('../src/init/questions.js');
       vi.doUnmock('../src/commands/register.js');
       vi.resetModules();
     }
@@ -160,7 +159,7 @@ describe('initCommand — GitLab/self-hosted run full interactive flow (20.6.7)'
     vi.resetModules();
 
     let setupQuestionsCallCount = 0;
-    vi.doMock('../src/utils/questions.js', () => ({
+    vi.doMock('../src/init/questions.js', () => ({
       askSetupQuestions: async () => { setupQuestionsCallCount++; return MINIMAL_ANSWERS; },
     }));
     vi.doMock('../src/commands/register.js', () => ({
@@ -179,7 +178,7 @@ describe('initCommand — GitLab/self-hosted run full interactive flow (20.6.7)'
     } finally {
       process.chdir(origCwd);
       rmSync(repoDir, { recursive: true, force: true });
-      vi.doUnmock('../src/utils/questions.js');
+      vi.doUnmock('../src/init/questions.js');
       vi.doUnmock('../src/commands/register.js');
       vi.resetModules();
     }

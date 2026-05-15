@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync, existsSync, copyFileSync } from 'fs';
 import { join, dirname, isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
-import type { SetupAnswers } from './questions.js';
+import type { SetupAnswers } from '../init/questions.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -33,7 +33,6 @@ const ALL_SKILL_COMMANDS = [
 
 export interface ConfigJson {
   version: number;
-  base_url: string;
   platforms: string[];
   mastodon_instance?: string;
   llm: {
@@ -74,7 +73,6 @@ export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void
 
   const config: ConfigJson & { attribution?: boolean } = {
     version: 1,
-    base_url: answers.baseUrl,
     platforms: answers.platforms,
     ...(hasMastodon && answers.mastodonInstance ? { mastodon_instance: answers.mastodonInstance } : {}),
     llm: {
@@ -147,7 +145,6 @@ export function writeGitHubConfigFiles(
   const config = {
     version: 1,
     project_id: projectId,
-    base_url: 'https://example.com',
     platforms: ['x', 'bluesky'],
     llm: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
     repo_type: 'open-source-library',

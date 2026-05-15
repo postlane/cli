@@ -35,7 +35,7 @@ describe('fetchGitHubProjectConfig', () => {
       json: async () => ({ project_id: 'proj-uuid-1', project_name: 'Acme' }),
     } as Response);
 
-    const { fetchGitHubProjectConfig } = await import('../src/utils/github_project_config.js');
+    const { fetchGitHubProjectConfig } = await import('../src/git/github_session.js');
     const result = await fetchGitHubProjectConfig('acme-org', 47312, 'test-session-token');
     expect(result).not.toBeNull();
     expect(result?.project_id).toBe('proj-uuid-1');
@@ -49,7 +49,7 @@ describe('fetchGitHubProjectConfig', () => {
       json: async () => ({ error: 'not_found' }),
     } as Response);
 
-    const { fetchGitHubProjectConfig } = await import('../src/utils/github_project_config.js');
+    const { fetchGitHubProjectConfig } = await import('../src/git/github_session.js');
     const result = await fetchGitHubProjectConfig('unknown-org', 47312, 'test-session-token');
     expect(result).toBeNull();
   });
@@ -57,7 +57,7 @@ describe('fetchGitHubProjectConfig', () => {
   it('returns null when fetch throws (app not running)', async () => {
     vi.spyOn(global, 'fetch').mockRejectedValueOnce(new Error('ECONNREFUSED'));
 
-    const { fetchGitHubProjectConfig } = await import('../src/utils/github_project_config.js');
+    const { fetchGitHubProjectConfig } = await import('../src/git/github_session.js');
     const result = await fetchGitHubProjectConfig('acme-org', 47312, 'test-session-token');
     expect(result).toBeNull();
   });
@@ -71,7 +71,7 @@ describe('fetchGitHubProjectConfig', () => {
       return { ok: true, json: async () => ({ project_id: 'p', project_name: 'n' }) } as Response;
     });
 
-    const { fetchGitHubProjectConfig } = await import('../src/utils/github_project_config.js');
+    const { fetchGitHubProjectConfig } = await import('../src/git/github_session.js');
     await fetchGitHubProjectConfig('acme-org', 47312, 'my-secret-token');
     expect(capturedHeaders['Authorization']).toBe('Bearer my-secret-token');
   });
@@ -92,14 +92,14 @@ describe('writeGitHubConfigFiles', () => {
   afterEach(() => { rmSync(repoDir, { recursive: true, force: true }); });
 
   it('writes project_id to config.json', async () => {
-    const { writeGitHubConfigFiles } = await import('../src/utils/files.js');
+    const { writeGitHubConfigFiles } = await import('../src/init/config_writer.js');
     writeGitHubConfigFiles(repoDir, 'proj-uuid-1', 'Acme');
     const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
     expect(config.project_id).toBe('proj-uuid-1');
   });
 
   it('writes a valid config.json with required fields', async () => {
-    const { writeGitHubConfigFiles } = await import('../src/utils/files.js');
+    const { writeGitHubConfigFiles } = await import('../src/init/config_writer.js');
     writeGitHubConfigFiles(repoDir, 'proj-uuid-1', 'Acme');
     const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
     expect(config.version).toBe(1);
@@ -109,13 +109,13 @@ describe('writeGitHubConfigFiles', () => {
   });
 
   it('creates skill files in .claude/commands/', async () => {
-    const { writeGitHubConfigFiles } = await import('../src/utils/files.js');
+    const { writeGitHubConfigFiles } = await import('../src/init/config_writer.js');
     writeGitHubConfigFiles(repoDir, 'proj-uuid-1', 'Acme');
     expect(existsSync(join(repoDir, '.claude', 'commands', 'draft-post.md'))).toBe(true);
   });
 
   it('adds config.local.json to .postlane/.gitignore', async () => {
-    const { writeGitHubConfigFiles } = await import('../src/utils/files.js');
+    const { writeGitHubConfigFiles } = await import('../src/init/config_writer.js');
     writeGitHubConfigFiles(repoDir, 'proj-uuid-1', 'Acme');
     const gitignore = readFileSync(join(repoDir, '.postlane', '.gitignore'), 'utf8');
     expect(gitignore).toContain('config.local.json');
@@ -127,7 +127,6 @@ describe('writeGitHubConfigFiles', () => {
 // ---------------------------------------------------------------------------
 
 const MINIMAL_ANSWERS = {
-  baseUrl: 'https://example.com',
   platforms: ['x', 'bluesky'],
   llmProvider: 'anthropic',
   llmModel: 'claude-sonnet-4-6',
@@ -145,13 +144,13 @@ describe('initCommand — GitHub non-interactive (20.6.8)', () => {
     vi.resetModules();
 
     let setupQuestionsCallCount = 0;
-    vi.doMock('../src/utils/questions.js', () => ({
+    vi.doMock('../src/init/questions.js', () => ({
       askSetupQuestions: async () => { setupQuestionsCallCount++; return MINIMAL_ANSWERS; },
     }));
     vi.doMock('../src/commands/register.js', () => ({
       registerCommand: async () => {},
     }));
-    vi.doMock('../src/utils/github_project_config.js', () => ({
+    vi.doMock('../src/git/github_session.js', () => ({
       fetchGitHubProjectConfig: async () => ({ project_id: 'proj-uuid-1', project_name: 'Acme' }),
       readAppSessionInfo: () => ({ port: 47312, token: 'test-token' }),
     }));
@@ -171,30 +170,31 @@ describe('initCommand — GitHub non-interactive (20.6.8)', () => {
     } finally {
       process.chdir(origCwd);
       rmSync(repoDir, { recursive: true, force: true });
-      vi.doUnmock('../src/utils/questions.js');
+      vi.doUnmock('../src/init/questions.js');
       vi.doUnmock('../src/commands/register.js');
-      vi.doUnmock('../src/utils/github_project_config.js');
+      vi.doUnmock('../src/git/github_session.js');
       vi.resetModules();
     }
   });
 
-  it('falls back to interactive flow when GitHub project config fetch returns null', async () => {
+  // 20.15.4 — GitHub + valid session → config written, no prompts
+  it('exits with error when GitHub project config fetch returns null (repo not in workspace)', async () => {
     const { vi: _vi } = await import('vitest');
     vi.resetModules();
 
-    let setupQuestionsCallCount = 0;
-    vi.doMock('../src/utils/questions.js', () => ({
-      askSetupQuestions: async () => { setupQuestionsCallCount++; return MINIMAL_ANSWERS; },
+    const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('process.exit'); });
+    vi.doMock('../src/init/questions.js', () => ({
+      askSetupQuestions: async () => MINIMAL_ANSWERS,
     }));
     vi.doMock('../src/commands/register.js', () => ({
       registerCommand: async () => {},
     }));
-    vi.doMock('../src/utils/github_project_config.js', () => ({
+    vi.doMock('../src/git/github_session.js', () => ({
       fetchGitHubProjectConfig: async () => null,
       readAppSessionInfo: () => ({ port: 47312, token: 'test-token' }),
     }));
 
-    const repoDir = makeTmpDir('init-gh-fallback');
+    const repoDir = makeTmpDir('init-gh-no-project');
     mkdirSync(join(repoDir, '.git'), { recursive: true });
     writeGitConfig(repoDir, 'https://github.com/acme-org/my-repo.git');
 
@@ -202,30 +202,33 @@ describe('initCommand — GitHub non-interactive (20.6.8)', () => {
     process.chdir(repoDir);
     try {
       const { initCommand } = await import('../src/commands/init.js');
-      await initCommand({});
-      expect(setupQuestionsCallCount).toBe(1);
+      await expect(initCommand({})).rejects.toThrow('process.exit');
+      expect(mockExit).toHaveBeenCalledWith(1);
     } finally {
       process.chdir(origCwd);
       rmSync(repoDir, { recursive: true, force: true });
-      vi.doUnmock('../src/utils/questions.js');
+      mockExit.mockRestore();
+      vi.doUnmock('../src/init/questions.js');
       vi.doUnmock('../src/commands/register.js');
-      vi.doUnmock('../src/utils/github_project_config.js');
+      vi.doUnmock('../src/git/github_session.js');
       vi.resetModules();
     }
   });
 
-  it('falls back to interactive flow when app session info is unavailable', async () => {
+  // 20.15.5 — no session token → clear error directing user to sign in
+  it('exits with error and sign-in message when app session info is unavailable', async () => {
     const { vi: _vi } = await import('vitest');
     vi.resetModules();
 
-    let setupQuestionsCallCount = 0;
-    vi.doMock('../src/utils/questions.js', () => ({
-      askSetupQuestions: async () => { setupQuestionsCallCount++; return MINIMAL_ANSWERS; },
+    const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('process.exit'); });
+    const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.doMock('../src/init/questions.js', () => ({
+      askSetupQuestions: async () => MINIMAL_ANSWERS,
     }));
     vi.doMock('../src/commands/register.js', () => ({
       registerCommand: async () => {},
     }));
-    vi.doMock('../src/utils/github_project_config.js', () => ({
+    vi.doMock('../src/git/github_session.js', () => ({
       fetchGitHubProjectConfig: async () => null,
       readAppSessionInfo: () => null,
     }));
@@ -238,14 +241,18 @@ describe('initCommand — GitHub non-interactive (20.6.8)', () => {
     process.chdir(repoDir);
     try {
       const { initCommand } = await import('../src/commands/init.js');
-      await initCommand({});
-      expect(setupQuestionsCallCount).toBe(1);
+      await expect(initCommand({})).rejects.toThrow('process.exit');
+      expect(mockExit).toHaveBeenCalledWith(1);
+      const errorMessages = mockError.mock.calls.map(c => String(c[0]));
+      expect(errorMessages.some(m => /sign in/i.test(m))).toBe(true);
     } finally {
       process.chdir(origCwd);
       rmSync(repoDir, { recursive: true, force: true });
-      vi.doUnmock('../src/utils/questions.js');
+      mockExit.mockRestore();
+      mockError.mockRestore();
+      vi.doUnmock('../src/init/questions.js');
       vi.doUnmock('../src/commands/register.js');
-      vi.doUnmock('../src/utils/github_project_config.js');
+      vi.doUnmock('../src/git/github_session.js');
       vi.resetModules();
     }
   });
