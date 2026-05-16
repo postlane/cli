@@ -18,7 +18,8 @@
     "build": "tsc",
     "test": "vitest run",
     "prebuild": "node scripts/copy-skills.js",
-    "prepublishOnly": "npm run build && npm test"
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "prepublishOnly": "npm run clean && npm run build && npm test"
   },
   "devDependencies": {
     "@types/inquirer": "^9.0.9",
