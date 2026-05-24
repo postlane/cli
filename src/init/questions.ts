@@ -26,7 +26,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   substack_notes: 'Substack Notes',
   substack: 'Substack',
   product_hunt: 'Product Hunt',
-  show_hn: 'Show HN',
+  show_hn: 'Hacker News',
   changelog: 'Changelog',
 };
 
@@ -34,6 +34,17 @@ export const PLATFORM_CHOICES = SUPPORTED_PLATFORMS.map(p => ({
   name: PLATFORM_LABELS[p] ?? p,
   value: p,
 }));
+
+// Curated model lists — update these with each CLI release.
+// Providers not in this map fall back to a free-text input.
+// Always present "Other (enter manually)" so a new model never blocks init.
+export const OTHER_MODEL = '__other__';
+
+export const MODEL_CHOICES: Record<string, string[]> = {
+  anthropic: ['claude-sonnet-4-6', 'claude-opus-4-7', 'claude-haiku-4-5-20251001'],
+  openai: ['gpt-4o', 'gpt-4o-mini', 'o4-mini', 'o3'],
+  google: ['gemini-2.5-pro', 'gemini-2.0-flash'],
+};
 
 export const PLATFORM_QUESTION = {
   type: 'checkbox' as const,
@@ -51,7 +62,7 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
       platforms: ['x', 'bluesky', 'mastodon'],
       mastodonInstance: 'mastodon.social',
       llmProvider: 'anthropic',
-      llmModel: 'claude-sonnet-4-5-20250929',
+      llmModel: 'claude-sonnet-4-6',
       schedulerProvider: 'zernio',
       schedulerApiKey: '',
       repoType: 'open-source-library',
@@ -62,7 +73,9 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
     };
   }
 
-  const answers = await inquirer.prompt<Partial<SetupAnswers>>([
+  type PromptAnswers = Partial<SetupAnswers> & { llmModelPick?: string; llmModelCustom?: string };
+
+  const answers = await inquirer.prompt<PromptAnswers>([
     PLATFORM_QUESTION,
     {
       type: 'input',
@@ -95,23 +108,26 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
       default: 'anthropic',
     },
     {
-      type: 'input',
-      name: 'llmModel',
-      message: 'LLM model name:',
-      default: (answers: Partial<SetupAnswers>) => {
-        switch (answers.llmProvider) {
-          case 'anthropic':
-            return 'claude-sonnet-4-5-20250929';
-          case 'openai':
-            return 'gpt-4o';
-          case 'google':
-            return 'gemini-2.0-flash-exp';
-          default:
-            return '';
-        }
-      },
+      type: 'list',
+      name: 'llmModelPick',
+      message: 'LLM model:',
+      choices: (answers: Partial<SetupAnswers>) => [
+        ...(MODEL_CHOICES[answers.llmProvider ?? ''] ?? []).map(m => ({ name: m, value: m })),
+        { name: 'Other (enter manually)', value: OTHER_MODEL },
+      ],
+      when: (answers: Partial<SetupAnswers>) =>
+        answers.llmProvider != null && answers.llmProvider in MODEL_CHOICES,
     },
-  ]);
+    {
+      type: 'input',
+      name: 'llmModelCustom',
+      message: 'LLM model name:',
+      when: (answers: Partial<SetupAnswers> & { llmModelPick?: string }) =>
+        !(answers.llmProvider != null && answers.llmProvider in MODEL_CHOICES) ||
+        answers.llmModelPick === OTHER_MODEL,
+      validate: (input: string) => input.trim().length > 0 || 'Model name is required.',
+    },
+  ] as Parameters<typeof inquirer.prompt>[0]);
 
   // Show data disclosure notice after LLM provider is chosen
   console.log(chalk.yellow('\n' + '─'.repeat(80)));
@@ -185,6 +201,11 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
     },
   ]);
 
+  const llmModel: string =
+    answers.llmModelPick && answers.llmModelPick !== OTHER_MODEL
+      ? answers.llmModelPick
+      : (answers.llmModelCustom?.trim() ?? '');
+
   // If --no-attribution was passed, override the prompt answer.
   // When user answers yes (or default), don't write the key — absence = enabled.
   const attributionValue = noAttribution ? false : (remainingAnswers.attribution === false ? false : undefined);
@@ -193,6 +214,7 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
     ...answers,
     ...schedulerAnswers,
     ...remainingAnswers,
+    llmModel,
     attribution: attributionValue,
   } as SetupAnswers;
 }
