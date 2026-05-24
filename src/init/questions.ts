@@ -2,6 +2,7 @@
 
 import inquirer from 'inquirer';
 import chalk from 'chalk';
+import { SUPPORTED_PLATFORMS } from './config_writer.js';
 
 export interface SetupAnswers {
   platforms: string[];
@@ -16,6 +17,33 @@ export interface SetupAnswers {
   author: string;
   attribution?: boolean;
 }
+
+const PLATFORM_LABELS: Record<string, string> = {
+  x: 'X (Twitter)',
+  bluesky: 'Bluesky',
+  mastodon: 'Mastodon',
+  linkedin: 'LinkedIn',
+  substack_notes: 'Substack Notes',
+  substack: 'Substack',
+  product_hunt: 'Product Hunt',
+  show_hn: 'Show HN',
+  changelog: 'Changelog',
+};
+
+export const PLATFORM_CHOICES = SUPPORTED_PLATFORMS.map(p => ({
+  name: PLATFORM_LABELS[p] ?? p,
+  value: p,
+}));
+
+export const PLATFORM_QUESTION = {
+  type: 'checkbox' as const,
+  name: 'platforms',
+  message: 'Which platforms do you post on?',
+  choices: PLATFORM_CHOICES,
+  default: ['x', 'bluesky', 'mastodon'],
+  validate: (selected: string[]) =>
+    selected.length > 0 || 'Select at least one platform.',
+};
 
 export async function askSetupQuestions(useDefaults: boolean, noAttribution = false): Promise<SetupAnswers> {
   if (useDefaults) {
@@ -35,13 +63,7 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
   }
 
   const answers = await inquirer.prompt<Partial<SetupAnswers>>([
-    {
-      type: 'input',
-      name: 'platforms',
-      message: 'Platforms (comma-separated):',
-      default: 'x,bluesky,mastodon',
-      filter: (input: string) => input.split(',').map(p => p.trim()),
-    },
+    PLATFORM_QUESTION,
     {
       type: 'input',
       name: 'mastodonInstance',

@@ -7,7 +7,7 @@ import type { SetupAnswers } from '../init/questions.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const SUPPORTED_PLATFORMS = ['x', 'bluesky', 'mastodon', 'linkedin', 'substack_notes', 'substack', 'product_hunt', 'show_hn', 'changelog'] as const;
+export const SUPPORTED_PLATFORMS = ['x', 'bluesky', 'mastodon', 'linkedin', 'substack_notes', 'substack', 'product_hunt', 'show_hn', 'changelog'] as const;
 
 export function validatePlatforms(platforms: string[]): string[] {
   const invalid = platforms.filter(
