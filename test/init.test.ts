@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { writeConfigFiles, validatePlatforms, patchProjectId } from '../src/init/config_writer.js';
+import { writeConfigFiles, validatePlatforms, patchProjectId, writeGitHubConfigFiles } from '../src/init/config_writer.js';
 
 // All 9 v1.1 commands (§7.6.1 requires 18 files = 9 × 2)
 const V1_1_COMMANDS = [
@@ -249,59 +249,28 @@ describe('platform validation', () => {
     expect(invalid).not.toContain('x');
   });
 
-  it('writeConfigFiles throws when an unsupported platform is provided', () => {
-    expect(() => {
-      writeConfigFiles(repoDir, { ...MINIMAL_ANSWERS, platforms: ['x', 'tiktok'] });
-    }).toThrow(/Unsupported platform/);
-  });
-
-  it('writeConfigFiles throws with the name of the invalid platform', () => {
-    expect(() => {
-      writeConfigFiles(repoDir, { ...MINIMAL_ANSWERS, platforms: ['instagram'] });
-    }).toThrow('instagram');
-  });
+  // writeConfigFiles no longer takes platforms — platform validation is not its responsibility
 });
 
 // ---------------------------------------------------------------------------
-// 9.3.3 — mastodon_instance written to config.json when mastodon is in platforms
+// mastodon_instance written to config.json when mastodonInstance is provided
+// (no longer tied to a platforms list)
 // ---------------------------------------------------------------------------
 
 describe('writeConfigFiles — mastodon_instance', () => {
   let repoDir: string;
 
-  beforeEach(() => {
-    repoDir = makeTmpRepo();
-  });
+  beforeEach(() => { repoDir = makeTmpRepo(); });
+  afterEach(() => { rmSync(repoDir, { recursive: true, force: true }); });
 
-  afterEach(() => {
-    rmSync(repoDir, { recursive: true, force: true });
-  });
-
-  it('writes mastodon_instance when mastodon is in platforms and mastodonInstance is provided', () => {
-    writeConfigFiles(repoDir, {
-      ...MINIMAL_ANSWERS,
-      platforms: ['x', 'mastodon'],
-      mastodonInstance: 'mastodon.social',
-    });
+  it('writes mastodon_instance when mastodonInstance is provided', () => {
+    writeConfigFiles(repoDir, { ...MINIMAL_ANSWERS, mastodonInstance: 'mastodon.social' });
     const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
     expect(config.mastodon_instance).toBe('mastodon.social');
   });
 
-  it('does not write mastodon_instance when mastodon is not in platforms', () => {
-    writeConfigFiles(repoDir, {
-      ...MINIMAL_ANSWERS,
-      platforms: ['x', 'bluesky'],
-      mastodonInstance: 'mastodon.social',
-    });
-    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
-    expect(config.mastodon_instance).toBeUndefined();
-  });
-
   it('does not write mastodon_instance when mastodonInstance is not provided', () => {
-    writeConfigFiles(repoDir, {
-      ...MINIMAL_ANSWERS,
-      platforms: ['x', 'mastodon'],
-    });
+    writeConfigFiles(repoDir, MINIMAL_ANSWERS);
     const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
     expect(config.mastodon_instance).toBeUndefined();
   });
@@ -433,10 +402,9 @@ describe('writeConfigFiles — no profile_id written (field removed)', () => {
 });
 
 describe('askSetupQuestions — mastodon instance (useDefaults)', () => {
-  it('returns mastodonInstance when default platforms include mastodon', async () => {
+  it('returns mastodonInstance in default answers', async () => {
     const { askSetupQuestions } = await import('../src/init/questions.js');
     const answers = await askSetupQuestions(true);
-    expect(answers.platforms).toContain('mastodon');
     expect(answers.mastodonInstance).toBe('mastodon.social');
   });
 });
@@ -589,7 +557,6 @@ describe('patchProjectId', () => {
   it('preserves other config fields when patching project_id', () => {
     patchProjectId(repoDir, 'proj-xyz');
     const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
-    expect(config.platforms).toEqual(['x', 'bluesky']);
     expect(config.version).toBe(1);
     expect(config.author).toBe('Test');
     expect(config.llm.provider).toBe('anthropic');
@@ -604,5 +571,51 @@ describe('patchProjectId', () => {
 
   it('throws when targetDir is not absolute', () => {
     expect(() => patchProjectId('relative/path', 'proj-abc')).toThrow(/absolute/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Derived-platforms model: config.json must NOT contain a platforms field
+// connected_platforms is a derived fact computed from actual connections,
+// not a user-declared preference written at init time.
+// ---------------------------------------------------------------------------
+
+describe('writeConfigFiles — no platforms field (derived-platforms model)', () => {
+  let repoDir: string;
+
+  beforeEach(() => { repoDir = makeTmpRepo(); });
+  afterEach(() => { rmSync(repoDir, { recursive: true, force: true }); });
+
+  it('does not write platforms to config.json', () => {
+    writeConfigFiles(repoDir, MINIMAL_ANSWERS);
+    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
+    expect(config.platforms).toBeUndefined();
+  });
+
+  it('writeConfigFiles does not require a platforms field in answers', () => {
+    const answersWithoutPlatforms = { ...MINIMAL_ANSWERS } as Partial<typeof MINIMAL_ANSWERS>;
+    delete answersWithoutPlatforms.platforms;
+    expect(() => writeConfigFiles(repoDir, answersWithoutPlatforms as typeof MINIMAL_ANSWERS)).not.toThrow();
+  });
+});
+
+describe('writeGitHubConfigFiles — no platforms field (derived-platforms model)', () => {
+  let repoDir: string;
+
+  beforeEach(() => { repoDir = makeTmpRepo(); });
+  afterEach(() => { rmSync(repoDir, { recursive: true, force: true }); });
+
+  it('does not write platforms to config.json', () => {
+    writeGitHubConfigFiles(repoDir, 'proj-abc', 'Test Project');
+    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
+    expect(config.platforms).toBeUndefined();
+  });
+});
+
+describe('askSetupQuestions — no platforms in answers (derived-platforms model)', () => {
+  it('default answers do not include a platforms property', async () => {
+    const { askSetupQuestions } = await import('../src/init/questions.js');
+    const answers = await askSetupQuestions(true);
+    expect(Object.keys(answers)).not.toContain('platforms');
   });
 });

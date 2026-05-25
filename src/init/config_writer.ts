@@ -34,7 +34,6 @@ const ALL_SKILL_COMMANDS = [
 
 export interface ConfigJson {
   version: number;
-  platforms: string[];
   mastodon_instance?: string;
   llm: {
     provider: string;
@@ -57,25 +56,15 @@ export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void
     throw new Error(`targetDir must be an absolute path, got: ${targetDir}`);
   }
 
-  const invalidPlatforms = validatePlatforms(answers.platforms);
-  if (invalidPlatforms.length > 0) {
-    throw new Error(
-      `Unsupported platform(s): ${invalidPlatforms.join(', ')}. Supported: ${SUPPORTED_PLATFORMS.join(', ')}`
-    );
-  }
-
   const postlaneDir = join(targetDir, '.postlane');
 
   // Step 1: Create .postlane directory
   mkdirSync(postlaneDir, { recursive: true });
 
   // Step 2: Write config.json (shared, committed to git)
-  const hasMastodon = answers.platforms.includes('mastodon');
-
   const config: ConfigJson & { attribution?: boolean } = {
     version: 1,
-    platforms: answers.platforms,
-    ...(hasMastodon && answers.mastodonInstance ? { mastodon_instance: answers.mastodonInstance } : {}),
+    ...(answers.mastodonInstance ? { mastodon_instance: answers.mastodonInstance } : {}),
     llm: {
       provider: answers.llmProvider,
       model: answers.llmModel,
@@ -146,7 +135,6 @@ export function writeGitHubConfigFiles(
   const config = {
     version: 1,
     project_id: projectId,
-    platforms: ['x', 'bluesky'],
     llm: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
     repo_type: 'open-source-library',
     style: 'Direct, technically precise.',
