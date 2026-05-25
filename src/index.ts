@@ -5,6 +5,7 @@ import { Command } from 'commander';
 import { initCommand } from './commands/init.js';
 import { registerCommand } from './commands/register.js';
 import { doctorCommand } from './commands/doctor.js';
+import { syncSkillsCommand } from './commands/sync_skills.js';
 import pkg from '../package.json' with { type: 'json' };
 
 const { version } = pkg;
@@ -32,5 +33,11 @@ program
   .command('doctor')
   .description('Run health checks for Postlane setup')
   .action(doctorCommand);
+
+program
+  .command('sync-skills')
+  .description('Update Claude Code skill files from the latest prompts source')
+  .option('--global', 'Install to ~/.claude/commands/ instead of the current repo')
+  .action(syncSkillsCommand);
 
 program.parse();

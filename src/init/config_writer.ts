@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync, existsSync, copyFileSync } from 'fs';
 import { join, dirname, isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
 import type { SetupAnswers } from '../init/questions.js';
+import { resolveSkillsSource } from './skills_source.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -179,14 +180,14 @@ function copySkillFiles(targetDir: string, postlaneDir: string): void {
   mkdirSync(runnerDir, { recursive: true });
 
   const cliDir = join(__dirname, '..', '..');
+  const { commandsDir: sourceCommandsDir } = resolveSkillsSource(cliDir);
   const bundledSkillsDir = join(cliDir, 'bundled-skills');
-  const bundledCommandsDir = join(bundledSkillsDir, 'commands');
   const bundledRunnerDir = join(bundledSkillsDir, 'runner');
 
   const filesToCopy: Array<{ from: string; to: string }> = [
     ...ALL_SKILL_COMMANDS.flatMap((cmd) => [
-      { from: join(bundledCommandsDir, `${cmd}.md`), to: join(claudeCommandsDir, `${cmd}.md`) },
-      { from: join(bundledCommandsDir, `${cmd}.prompt`), to: join(postlaneCommandsDir, `${cmd}.prompt`) },
+      { from: join(sourceCommandsDir, `${cmd}.md`), to: join(claudeCommandsDir, `${cmd}.md`) },
+      { from: join(sourceCommandsDir, `${cmd}.prompt`), to: join(postlaneCommandsDir, `${cmd}.prompt`) },
     ]),
     { from: join(bundledSkillsDir, 'preview-template.html'), to: join(promptsDir, 'preview-template.html') },
     { from: join(bundledRunnerDir, 'run.ts'), to: join(runnerDir, 'run.ts') },
