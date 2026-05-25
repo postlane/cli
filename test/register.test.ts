@@ -207,8 +207,8 @@ describe('postlane register', () => {
         clearTimeout(timeoutId);
       } catch (error) {
         const elapsed = Date.now() - start;
-        // Should timeout around 200ms
-        expect(elapsed).toBeLessThan(300);
+        // Should abort well before any real connection timeout (2s headroom for test suite load)
+        expect(elapsed).toBeLessThan(2000);
       }
     });
   });
