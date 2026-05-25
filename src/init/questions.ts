@@ -46,6 +46,22 @@ export const MODEL_CHOICES: Record<string, string[]> = {
   google: ['gemini-2.5-pro', 'gemini-2.0-flash'],
 };
 
+export const UTM_CONFIRM_QUESTION = {
+  type: 'confirm' as const,
+  name: 'useUtm',
+  message: 'Add UTM campaign tracking to post links?',
+  default: false,
+};
+
+export const UTM_CAMPAIGN_QUESTION = {
+  type: 'input' as const,
+  name: 'utmCampaign',
+  message: 'UTM campaign name:',
+  default: 'postlane',
+  when: (a: { useUtm?: boolean }) => a.useUtm === true,
+  validate: (input: string) => input.trim().length > 0 || 'Campaign name is required.',
+};
+
 export const PLATFORM_QUESTION = {
   type: 'checkbox' as const,
   name: 'platforms',
@@ -73,7 +89,7 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
     };
   }
 
-  type PromptAnswers = Partial<SetupAnswers> & { llmModelPick?: string; llmModelCustom?: string };
+  type PromptAnswers = Partial<SetupAnswers> & { llmModelPick?: string; llmModelCustom?: string; useUtm?: boolean };
 
   const answers = await inquirer.prompt<PromptAnswers>([
     PLATFORM_QUESTION,
@@ -162,7 +178,7 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
     },
   ]);
 
-  const remainingAnswers = await inquirer.prompt<Partial<SetupAnswers>>([
+  const remainingAnswers = await inquirer.prompt<Partial<SetupAnswers> & { useUtm?: boolean }>([
     {
       type: 'list',
       name: 'repoType',
@@ -181,12 +197,8 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
       message: 'Writing style:',
       default: 'Direct, technically precise, occasionally dry. No exclamation marks.',
     },
-    {
-      type: 'input',
-      name: 'utmCampaign',
-      message: 'UTM campaign (optional):',
-      default: '',
-    },
+    UTM_CONFIRM_QUESTION,
+    UTM_CAMPAIGN_QUESTION,
     {
       type: 'input',
       name: 'author',
@@ -215,6 +227,7 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
     ...schedulerAnswers,
     ...remainingAnswers,
     llmModel,
+    utmCampaign: remainingAnswers.useUtm ? (remainingAnswers.utmCampaign ?? '') : '',
     attribution: attributionValue,
   } as SetupAnswers;
 }

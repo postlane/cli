@@ -6,7 +6,7 @@ import { join } from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { askSetupQuestions } from '../init/questions.js';
-import { writeConfigFiles, writeGitHubConfigFiles, checkPartialInit, repairPartialInit } from '../init/config_writer.js';
+import { writeConfigFiles, writeGitHubConfigFiles, patchProjectId, checkPartialInit, repairPartialInit } from '../init/config_writer.js';
 import { detectGitProvider, extractOrgLogin } from '../git/provider.js';
 import { fetchGitHubProjectConfig, readAppSessionInfo } from '../git/github_session.js';
 import { registerCommand } from './register.js';
@@ -157,6 +157,20 @@ export async function initCommand(options: InitOptions) {
     // Interactive flow for GitLab and self-hosted providers
     const answers = await askSetupQuestions(options.defaults || false, options.noAttribution || false);
     writeConfigFiles(targetDir, answers);
+
+    // Stamp project_id from the running desktop app when available.
+    const session = readAppSessionInfo();
+    if (session) {
+      const orgLogin = extractOrgLogin(targetDir);
+      if (orgLogin) {
+        const projectConfig = await fetchGitHubProjectConfig(orgLogin, session.port, session.token);
+        if (projectConfig) {
+          patchProjectId(targetDir, projectConfig.project_id);
+          console.log(chalk.green(`✓ Linked to workspace: ${projectConfig.project_name}`));
+        }
+      }
+    }
+
     console.log(chalk.green('\n✓ Setup complete!'));
 
     // Step 9: Automatically call postlane register

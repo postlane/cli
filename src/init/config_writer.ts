@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-import { mkdirSync, writeFileSync, existsSync, copyFileSync } from 'fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, copyFileSync } from 'fs';
 import { join, dirname, isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
 import type { SetupAnswers } from '../init/questions.js';
@@ -200,6 +200,18 @@ function copySkillFiles(targetDir: string, postlaneDir: string): void {
       writeFileSync(to, `<!-- Placeholder for ${from} -->\n`, 'utf-8');
     }
   }
+}
+
+/// Patches `project_id` into an existing `.postlane/config.json` without touching other fields.
+export function patchProjectId(targetDir: string, projectId: string): void {
+  if (!isAbsolute(targetDir)) {
+    throw new Error(`targetDir must be an absolute path, got: ${targetDir}`);
+  }
+  const configPath = join(targetDir, '.postlane', 'config.json');
+  const content = readFileSync(configPath, 'utf-8');
+  const config: Record<string, unknown> = JSON.parse(content);
+  config['project_id'] = projectId;
+  writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
 }
 
 export function checkPartialInit(targetDir: string): 'complete' | 'partial' | 'none' {
