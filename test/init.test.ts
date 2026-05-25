@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { writeConfigFiles, validatePlatforms } from '../src/init/config_writer.js';
+import { writeConfigFiles, validatePlatforms, patchProjectId } from '../src/init/config_writer.js';
 
 // All 9 v1.1 commands (§7.6.1 requires 18 files = 9 × 2)
 const V1_1_COMMANDS = [
@@ -565,5 +565,44 @@ describe('writeConfigFiles — config.local.json split (20.9)', () => {
     writeConfigFiles(repoDir, MINIMAL_ANSWERS);
     const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
     expect(config.scheduler).toBeUndefined();
+  });
+});
+
+describe('patchProjectId', () => {
+  let repoDir: string;
+
+  beforeEach(() => {
+    repoDir = makeTmpRepo();
+    writeConfigFiles(repoDir, MINIMAL_ANSWERS);
+  });
+
+  afterEach(() => {
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it('writes project_id into existing config.json', () => {
+    patchProjectId(repoDir, 'proj-abc-123');
+    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
+    expect(config.project_id).toBe('proj-abc-123');
+  });
+
+  it('preserves other config fields when patching project_id', () => {
+    patchProjectId(repoDir, 'proj-xyz');
+    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
+    expect(config.platforms).toEqual(['x', 'bluesky']);
+    expect(config.version).toBe(1);
+    expect(config.author).toBe('Test');
+    expect(config.llm.provider).toBe('anthropic');
+  });
+
+  it('overwrites project_id if already present', () => {
+    patchProjectId(repoDir, 'proj-first');
+    patchProjectId(repoDir, 'proj-second');
+    const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
+    expect(config.project_id).toBe('proj-second');
+  });
+
+  it('throws when targetDir is not absolute', () => {
+    expect(() => patchProjectId('relative/path', 'proj-abc')).toThrow(/absolute/i);
   });
 });

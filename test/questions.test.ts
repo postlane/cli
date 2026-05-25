@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect } from 'vitest';
-import { PLATFORM_CHOICES, PLATFORM_QUESTION, MODEL_CHOICES, OTHER_MODEL } from '../src/init/questions.js';
+import { PLATFORM_CHOICES, PLATFORM_QUESTION, MODEL_CHOICES, OTHER_MODEL, UTM_CONFIRM_QUESTION, UTM_CAMPAIGN_QUESTION } from '../src/init/questions.js';
 import { SUPPORTED_PLATFORMS } from '../src/init/config_writer.js';
 
 describe('platform question configuration', () => {
@@ -34,6 +34,37 @@ describe('platform question configuration', () => {
 
   it('platform question validate passes when at least one platform is selected', () => {
     const result = (PLATFORM_QUESTION.validate as (v: string[]) => string | boolean)([SUPPORTED_PLATFORMS[0]]);
+    expect(result).toBe(true);
+  });
+});
+
+describe('UTM campaign questions', () => {
+  it('utm confirm question type is confirm, not input', () => {
+    expect(UTM_CONFIRM_QUESTION.type).toBe('confirm');
+  });
+
+  it('utm confirm question defaults to false', () => {
+    expect(UTM_CONFIRM_QUESTION.default).toBe(false);
+  });
+
+  it('utm campaign question is not shown when useUtm is false', () => {
+    const result = UTM_CAMPAIGN_QUESTION.when({ useUtm: false });
+    expect(result).toBe(false);
+  });
+
+  it('utm campaign question is shown when useUtm is true', () => {
+    const result = UTM_CAMPAIGN_QUESTION.when({ useUtm: true });
+    expect(result).toBe(true);
+  });
+
+  it('utm campaign question validate rejects empty input', () => {
+    const result = UTM_CAMPAIGN_QUESTION.validate('');
+    expect(result).not.toBe(true);
+    expect(typeof result).toBe('string');
+  });
+
+  it('utm campaign question validate accepts non-empty input', () => {
+    const result = UTM_CAMPAIGN_QUESTION.validate('postlane');
     expect(result).toBe(true);
   });
 });
