@@ -103,7 +103,7 @@ describe('writeGitHubConfigFiles', () => {
     writeGitHubConfigFiles(repoDir, 'proj-uuid-1', 'Acme');
     const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
     expect(config.version).toBe(1);
-    expect(Array.isArray(config.platforms)).toBe(true);
+    expect(config.platforms).toBeUndefined();
     expect(config.llm?.provider).toBeTruthy();
     expect(config.llm?.model).toBeTruthy();
   });

@@ -5,7 +5,6 @@ import chalk from 'chalk';
 import { SUPPORTED_PLATFORMS } from './config_writer.js';
 
 export interface SetupAnswers {
-  platforms: string[];
   mastodonInstance?: string;
   llmProvider: string;
   llmModel: string;
@@ -75,7 +74,6 @@ export const PLATFORM_QUESTION = {
 export async function askSetupQuestions(useDefaults: boolean, noAttribution = false): Promise<SetupAnswers> {
   if (useDefaults) {
     return {
-      platforms: ['x', 'bluesky', 'mastodon'],
       mastodonInstance: 'mastodon.social',
       llmProvider: 'anthropic',
       llmModel: 'claude-sonnet-4-6',
@@ -92,19 +90,6 @@ export async function askSetupQuestions(useDefaults: boolean, noAttribution = fa
   type PromptAnswers = Partial<SetupAnswers> & { llmModelPick?: string; llmModelCustom?: string; useUtm?: boolean };
 
   const answers = await inquirer.prompt<PromptAnswers>([
-    PLATFORM_QUESTION,
-    {
-      type: 'input',
-      name: 'mastodonInstance',
-      message: 'Mastodon instance hostname (e.g. mastodon.social):',
-      default: 'mastodon.social',
-      when: (answers: Partial<SetupAnswers>) => Array.isArray(answers.platforms) && answers.platforms.includes('mastodon'),
-      validate: (input: string) => {
-        if (input.includes('://')) return 'Enter a hostname only, not a URL (e.g. mastodon.social)';
-        if (!input.trim()) return 'Mastodon instance hostname is required';
-        return true;
-      },
-    },
     {
       type: 'list',
       name: 'llmProvider',
