@@ -4,6 +4,15 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
+function isGitHubProjectConfig(val: unknown): val is GitHubProjectConfig {
+  return (
+    typeof val === 'object' &&
+    val !== null &&
+    typeof (val as Record<string, unknown>).project_id === 'string' &&
+    typeof (val as Record<string, unknown>).project_name === 'string'
+  );
+}
+
 export interface GitHubProjectConfig {
   project_id: string;
   project_name: string;
@@ -46,7 +55,15 @@ export async function fetchGitHubProjectConfig(
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) return null;
-    return await response.json() as GitHubProjectConfig;
+    const data: unknown = await response.json();
+    if (!isGitHubProjectConfig(data)) {
+      console.warn(
+        `[postlane] Postlane app returned unexpected project config shape from ${url}. ` +
+        'Upgrade the Postlane desktop app if this persists.',
+      );
+      return null;
+    }
+    return data;
   } catch {
     return null;
   }
