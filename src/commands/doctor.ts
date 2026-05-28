@@ -6,43 +6,8 @@ import { homedir } from 'os';
 import { join } from 'path';
 import chalk from 'chalk';
 import { KNOWN_INSTALL_PATHS, isAppHealthy } from '../app/health.js';
-
-export { isValidPort } from '../app/health.js';
-
-interface Repo {
-  id: string;
-  name: string;
-  path: string;
-  active: boolean;
-  added_at: string;
-}
-
-interface ReposConfig {
-  version: number;
-  repos: Repo[];
-}
-
-function isRepo(val: unknown): val is Repo {
-  if (typeof val !== 'object' || val === null) return false;
-  const obj = val as Record<string, unknown>;
-  return (
-    typeof obj.id === 'string' &&
-    typeof obj.name === 'string' &&
-    typeof obj.path === 'string' &&
-    typeof obj.active === 'boolean' &&
-    typeof obj.added_at === 'string'
-  );
-}
-
-function isReposConfig(val: unknown): val is ReposConfig {
-  if (typeof val !== 'object' || val === null) return false;
-  const obj = val as Record<string, unknown>;
-  return (
-    typeof obj.version === 'number' &&
-    Array.isArray(obj.repos) &&
-    (obj.repos as unknown[]).every(isRepo)
-  );
-}
+import { isReposConfig } from '../app/repos.js';
+import { SKILL_FILE_NAMES } from '../app/skill_manifest.js';
 
 export interface Check {
   name: string;
@@ -51,19 +16,6 @@ export interface Check {
   status?: 'skipped';
   fix?: string;
 }
-
-const EXPECTED_SKILL_FILES = [
-  'draft-post.md',
-  'draft-x.md',
-  'draft-bluesky.md',
-  'draft-mastodon.md',
-  'draft-linkedin.md',
-  'draft-substack.md',
-  'draft-product-hunt.md',
-  'draft-show-hn.md',
-  'draft-changelog.md',
-  'redraft-post.md',
-];
 
 export function checkConfig(targetDir: string): Check {
   const configPath = join(targetDir, '.postlane', 'config.json');
@@ -74,12 +26,7 @@ export function checkConfig(targetDir: string): Check {
     const content = readFileSync(configPath, 'utf-8');
     JSON.parse(content);
     return { name: 'config.json', description: 'Configuration file exists', passed: true };
-  } catch (error) {
-    console.warn(
-      `[postlane doctor] .postlane/config.json at ${configPath} could not be read or parsed: ` +
-      `${error instanceof Error ? error.message : String(error)}. ` +
-      'Run `npx postlane init` to recreate it.',
-    );
+  } catch {
     return { name: 'config.json', description: 'Configuration file exists', passed: false, fix: 'Run `npx postlane init` to set up this repo.' };
   }
 }
@@ -103,7 +50,7 @@ export async function checkAppRunning(): Promise<Check> {
       const portStr = readFileSync(portPath, 'utf-8').trim();
       appRunning = await isAppHealthy(portStr);
     } catch {
-      console.warn('[postlane doctor] Failed to read port file at ~/.postlane/port — skipping health check.');
+      appRunning = false;
     }
   }
   return {
@@ -114,26 +61,19 @@ export async function checkAppRunning(): Promise<Check> {
   };
 }
 
-export function checkRepoRegistered(targetDir: string): Check {
-  const reposPath = join(homedir(), '.postlane', 'repos.json');
+export function checkRepoRegistered(
+  targetDir: string,
+  reposPath: string = join(homedir(), '.postlane', 'repos.json'),
+): Check {
   let repoRegistered = false;
   if (existsSync(reposPath)) {
     try {
       const parsed: unknown = JSON.parse(readFileSync(reposPath, 'utf-8'));
       if (isReposConfig(parsed)) {
         repoRegistered = parsed.repos.some((r) => r.path === targetDir);
-      } else {
-        console.warn(
-          `[postlane doctor] repos.json at ${reposPath} has an unexpected schema — ` +
-          'run `postlane register` to recreate it.',
-        );
       }
-    } catch (error) {
-      console.warn(
-        `[postlane doctor] Failed to read repos.json at ${reposPath}: ` +
-        `${error instanceof Error ? error.message : String(error)}. ` +
-        'Run `postlane register` to recreate it.',
-      );
+    } catch {
+      repoRegistered = false;
     }
   }
   return {
@@ -163,7 +103,7 @@ export function checkSessionToken(): Check {
 
 export function checkSkillFiles(targetDir: string): Check {
   const claudeCommandsPath = join(targetDir, '.claude', 'commands');
-  const missing = EXPECTED_SKILL_FILES.filter(f => !existsSync(join(claudeCommandsPath, f)));
+  const missing = SKILL_FILE_NAMES.filter(f => !existsSync(join(claudeCommandsPath, f)));
   const passed = missing.length === 0;
   return {
     name: 'skill-files',
@@ -204,13 +144,8 @@ export function checkLocalConfigTracked(targetDir: string): Check {
       { cwd: targetDir, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
     );
     localConfigTracked = output.trim().length > 0;
-  } catch (error) {
+  } catch {
     // git not available or not a git repo — treat as untracked (safe default)
-    console.warn(
-      `[postlane doctor] Could not run git ls-files in ${targetDir}: ` +
-      `${error instanceof Error ? error.message : String(error)}. ` +
-      'Ensure git is installed and this is a git repository.',
-    );
     localConfigTracked = false;
   }
   return {

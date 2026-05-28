@@ -34,11 +34,15 @@ export async function isAppHealthy(portStr: string): Promise<boolean> {
   const url = `http://127.0.0.1:${portStr}/health`;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 200);
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
     const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
     return response.ok;
-  } catch {
+  } catch (err) {
+    console.warn(
+      `[postlane health] health check failed on port ${portStr}: ` +
+      `${err instanceof Error ? err.message : String(err)}`,
+    );
     return false;
   }
 }

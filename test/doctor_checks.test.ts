@@ -2,9 +2,9 @@
 // Isolation tests for each extracted runDoctor check function (Task 3)
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'fs';
+import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
-import { tmpdir, homedir } from 'os';
+import { tmpdir } from 'os';
 import {
   checkConfig,
   checkAppInstalled,
@@ -81,9 +81,10 @@ describe('checkSkillFiles', () => {
     const commandsDir = join(dir, '.claude', 'commands');
     mkdirSync(commandsDir, { recursive: true });
     const files = [
-      'draft-post.md', 'draft-x.md', 'draft-bluesky.md', 'draft-mastodon.md',
-      'draft-linkedin.md', 'draft-substack.md', 'draft-product-hunt.md',
-      'draft-show-hn.md', 'draft-changelog.md', 'redraft-post.md',
+      'draft-post.md', 'register-repo.md', 'draft-x.md', 'draft-bluesky.md',
+      'draft-mastodon.md', 'draft-linkedin.md', 'draft-substack.md',
+      'draft-product-hunt.md', 'draft-show-hn.md', 'draft-changelog.md',
+      'redraft-post.md',
     ];
     for (const f of files) writeFileSync(join(commandsDir, f), `# ${f}`);
     const result = checkSkillFiles(dir);
@@ -152,35 +153,42 @@ describe('checkLocalConfigTracked', () => {
 
 describe('checkRepoRegistered', () => {
   let dir: string;
-  beforeEach(() => { dir = makeTmpDir(); });
-  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+  let tmpPostlaneDir: string;
+  beforeEach(() => {
+    dir = makeTmpDir();
+    tmpPostlaneDir = makeTmpDir();
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(tmpPostlaneDir, { recursive: true, force: true });
+  });
 
   it('fails when no repos.json exists', () => {
-    const result = checkRepoRegistered('/nonexistent/path/that/is/not/registered');
+    const reposPath = join(tmpPostlaneDir, 'repos.json');
+    const result = checkRepoRegistered('/nonexistent/path/that/is/not/registered', reposPath);
     expect(result.passed).toBe(false);
     expect(result.fix).toContain('postlane register');
   });
 
   it('passes when current dir is in repos.json', () => {
-    const postlaneDir = join(homedir(), '.postlane');
-    mkdirSync(postlaneDir, { recursive: true });
-    const reposPath = join(postlaneDir, 'repos.json');
-    const backup = existsSync(reposPath) ? readFileSync(reposPath) : null;
-
+    const reposPath = join(tmpPostlaneDir, 'repos.json');
     const repos = {
       version: 1,
       repos: [{ id: 'x', name: 'test', path: dir, active: true, added_at: new Date().toISOString() }],
     };
     writeFileSync(reposPath, JSON.stringify(repos, null, 2));
-
-    const result = checkRepoRegistered(dir);
-
-    if (backup !== null) {
-      writeFileSync(reposPath, backup);
-    } else if (existsSync(reposPath)) {
-      rmSync(reposPath, { force: true });
-    }
-
+    const result = checkRepoRegistered(dir, reposPath);
     expect(result.passed).toBe(true);
+  });
+
+  it('fails when target dir is not in repos.json', () => {
+    const reposPath = join(tmpPostlaneDir, 'repos.json');
+    const repos = {
+      version: 1,
+      repos: [{ id: 'x', name: 'test', path: '/some/other/path', active: true, added_at: new Date().toISOString() }],
+    };
+    writeFileSync(reposPath, JSON.stringify(repos, null, 2));
+    const result = checkRepoRegistered(dir, reposPath);
+    expect(result.passed).toBe(false);
   });
 });

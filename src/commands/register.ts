@@ -6,26 +6,14 @@ import { join, basename } from 'path';
 import chalk from 'chalk';
 import { randomUUID } from 'crypto';
 import { isValidPort, KNOWN_INSTALL_PATHS, isAppHealthy } from '../app/health.js';
+import { isReposConfig } from '../app/repos.js';
+import type { Repo, ReposConfig } from '../app/repos.js';
 
 export function writeSecureJson(filePath: string, data: unknown): void {
   writeFileSync(filePath, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
 }
 
-type AppState = 'running' | 'installed' | 'not-installed';
-
-interface Repo {
-  id: string;
-  name: string;
-  path: string;
-  active: boolean;
-  added_at: string;
-}
-
-interface ReposConfig {
-  version: number;
-  repos: Repo[];
-}
-
+type AppState = { kind: 'running'; port: string } | { kind: 'installed' } | { kind: 'not-installed' };
 
 export async function registerCommand() {
   try {
@@ -44,9 +32,9 @@ export async function registerCommand() {
     const state = await detectAppState();
     const repoName = basename(targetPath);
 
-    switch (state) {
+    switch (state.kind) {
       case 'running':
-        await handleRunningState(targetPath, repoName);
+        await handleRunningState(targetPath, repoName, state.port);
         break;
       case 'installed':
         handleInstalledState(targetPath, repoName);
@@ -75,22 +63,6 @@ function isRegisterResponse(val: unknown): val is RegisterResponse {
   );
 }
 
-function isReposConfig(val: unknown): val is ReposConfig {
-  if (typeof val !== 'object' || val === null) return false;
-  const obj = val as Record<string, unknown>;
-  if (typeof obj.version !== 'number' || !Array.isArray(obj.repos)) return false;
-  return (obj.repos as unknown[]).every(
-    (r) =>
-      typeof r === 'object' &&
-      r !== null &&
-      typeof (r as Record<string, unknown>).id === 'string' &&
-      typeof (r as Record<string, unknown>).name === 'string' &&
-      typeof (r as Record<string, unknown>).path === 'string' &&
-      typeof (r as Record<string, unknown>).active === 'boolean' &&
-      typeof (r as Record<string, unknown>).added_at === 'string',
-  );
-}
-
 async function detectAppState(): Promise<AppState> {
   const postlaneDir = join(homedir(), '.postlane');
   const portPath = join(postlaneDir, 'port');
@@ -101,7 +73,7 @@ async function detectAppState(): Promise<AppState> {
     if (!isValidPort(port)) {
       console.warn(`[postlane] port file contains invalid port value '${port}' — skipping health check`);
     } else if (await isAppHealthy(port)) {
-      return 'running';
+      return { kind: 'running', port };
     }
   }
 
@@ -111,18 +83,17 @@ async function detectAppState(): Promise<AppState> {
 
   for (const path of paths) {
     if (existsSync(path)) {
-      return 'installed';
+      return { kind: 'installed' };
     }
   }
 
   // Step 3: Not installed
-  return 'not-installed';
+  return { kind: 'not-installed' };
 }
 
-async function handleRunningState(repoPath: string, repoName: string): Promise<void> {
+export async function handleRunningState(repoPath: string, repoName: string, port: string): Promise<void> {
   const postlaneDir = join(homedir(), '.postlane');
   const tokenPath = join(postlaneDir, 'session.token');
-  const portPath = join(postlaneDir, 'port');
 
   if (!existsSync(tokenPath)) {
     console.error(chalk.red('Error: session.token not found.'));
@@ -131,7 +102,6 @@ async function handleRunningState(repoPath: string, repoName: string): Promise<v
   }
 
   const token = readFileSync(tokenPath, 'utf-8').trim();
-  const port = readFileSync(portPath, 'utf-8').trim();
 
   const registerUrl = `http://127.0.0.1:${port}/register`;
 

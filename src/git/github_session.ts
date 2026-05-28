@@ -5,11 +5,12 @@ import { join } from 'path';
 import { homedir } from 'os';
 
 function isGitHubProjectConfig(val: unknown): val is GitHubProjectConfig {
+  if (typeof val !== 'object' || val === null) return false;
+  const obj = val as Record<string, unknown>;
+  const { project_id, project_name } = obj;
   return (
-    typeof val === 'object' &&
-    val !== null &&
-    typeof (val as Record<string, unknown>).project_id === 'string' &&
-    typeof (val as Record<string, unknown>).project_name === 'string'
+    typeof project_id === 'string' && project_id.length > 0 &&
+    typeof project_name === 'string' && project_name.length > 0
   );
 }
 

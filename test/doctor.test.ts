@@ -4,7 +4,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir, homedir } from 'os';
-import { runDoctor, getExitCode, isValidPort } from '../src/commands/doctor.js';
+import { runDoctor, getExitCode } from '../src/commands/doctor.js';
+import { isValidPort } from '../src/app/health.js';
+import { SKILL_FILE_NAMES } from '../src/app/skill_manifest.js';
 
 describe('postlane doctor', () => {
   let testDir: string;
@@ -166,19 +168,6 @@ describe('postlane doctor', () => {
   });
 
   describe('skill-files check', () => {
-    const EXPECTED_SKILL_FILES = [
-      'draft-post.md',
-      'draft-x.md',
-      'draft-bluesky.md',
-      'draft-mastodon.md',
-      'draft-linkedin.md',
-      'draft-substack.md',
-      'draft-product-hunt.md',
-      'draft-show-hn.md',
-      'draft-changelog.md',
-      'redraft-post.md',
-    ];
-
     it('should fail when no skill files exist', async () => {
       const checks = await runDoctor();
       const skillCheck = checks.find((c) => c.name === 'skill-files');
@@ -204,7 +193,7 @@ describe('postlane doctor', () => {
     it('should pass when all expected skill files exist', async () => {
       const commandsDir = join(testDir, '.claude', 'commands');
       mkdirSync(commandsDir, { recursive: true });
-      for (const file of EXPECTED_SKILL_FILES) {
+      for (const file of SKILL_FILE_NAMES) {
         writeFileSync(join(commandsDir, file), `# ${file}`);
       }
 

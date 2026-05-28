@@ -1,0 +1,5 @@
+{
+  "scheduler": {
+    "provider": "upload_post"
+  }
+}

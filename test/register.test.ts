@@ -432,4 +432,44 @@ describe('postlane register', () => {
       rmSync(realGit, { recursive: true, force: true });
     });
   });
+
+  describe('handleRunningState — uses passed port, not a re-read', () => {
+    it('constructs the register URL from the passed port parameter', async () => {
+      vi.resetModules();
+
+      const capturedUrls: string[] = [];
+      const fakePort = '54321';
+      const fakeToken = 'test-token';
+
+      const fakeHome = join(tmpdir(), `postlane-hrstate-home-${Date.now()}`);
+      mkdirSync(join(fakeHome, '.postlane'), { recursive: true });
+      writeFileSync(join(fakeHome, '.postlane', 'session.token'), fakeToken);
+      // Write a DIFFERENT port to the port file — the function must NOT read this
+      writeFileSync(join(fakeHome, '.postlane', 'port'), '99999');
+
+      vi.doMock('os', async () => {
+        const actual = await vi.importActual<typeof import('os')>('os');
+        return { ...actual, homedir: () => fakeHome };
+      });
+
+      // Mock fetch to capture the URL that was used
+      vi.stubGlobal('fetch', async (url: string) => {
+        capturedUrls.push(url);
+        return { ok: true, json: async () => ({ success: true, name: 'test-repo' }) } as Response;
+      });
+
+      const { handleRunningState } = await import('../src/commands/register.js');
+      await handleRunningState('/some/repo', 'test-repo', fakePort);
+
+      vi.unstubAllGlobals();
+      vi.doUnmock('os');
+      vi.resetModules();
+      rmSync(fakeHome, { recursive: true, force: true });
+
+      expect(capturedUrls).toHaveLength(1);
+      expect(capturedUrls[0]).toContain(`:${fakePort}/register`);
+      // Must NOT use port 99999 (the value in the port file)
+      expect(capturedUrls[0]).not.toContain(':99999/');
+    });
+  });
 });

@@ -22,6 +22,36 @@ function writeGitConfig(repoDir: string, url: string): void {
 }
 
 // ---------------------------------------------------------------------------
+// isGitHubProjectConfig — type guard rejects empty strings
+// ---------------------------------------------------------------------------
+
+describe('isGitHubProjectConfig (via fetchGitHubProjectConfig shape validation)', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('returns null when the app returns an empty project_id', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ project_id: '', project_name: 'Acme' }),
+    } as Response);
+
+    const { fetchGitHubProjectConfig } = await import('../src/git/github_session.js');
+    const result = await fetchGitHubProjectConfig('acme-org', 47312, 'test-token');
+    expect(result).toBeNull();
+  });
+
+  it('returns null when the app returns an empty project_name', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ project_id: 'proj-uuid-1', project_name: '' }),
+    } as Response);
+
+    const { fetchGitHubProjectConfig } = await import('../src/git/github_session.js');
+    const result = await fetchGitHubProjectConfig('acme-org', 47312, 'test-token');
+    expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // fetchGitHubProjectConfig unit tests
 // ---------------------------------------------------------------------------
 

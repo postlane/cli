@@ -62,8 +62,8 @@ describe('isAppHealthy', () => {
 
   it('returns false when fetch throws (app not running)', async () => {
     const { isAppHealthy } = await import('../src/app/health.js');
-    // Port 1 is almost certainly not running a Postlane instance
-    const result = await isAppHealthy('1');
+    // Port 19999 is almost certainly not running a Postlane instance
+    const result = await isAppHealthy('19999');
     expect(result).toBe(false);
   });
 
