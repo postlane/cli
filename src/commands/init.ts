@@ -138,19 +138,22 @@ export async function setupInteractiveFlow(
   targetDir: string,
   useDefaults: boolean,
   noAttribution: boolean,
+  provider?: string,
 ): Promise<void> {
   const answers = await askSetupQuestions(useDefaults, noAttribution);
   writeConfigFiles(targetDir, answers);
 
-  // Stamp project_id from the running desktop app when available.
-  const session = readAppSessionInfo();
-  if (session) {
-    const orgLogin = extractOrgLogin(targetDir);
-    if (orgLogin) {
-      const projectConfig = await fetchGitHubProjectConfig(orgLogin, session.port, session.token);
-      if (projectConfig) {
-        patchProjectId(targetDir, projectConfig.project_id);
-        console.log(chalk.green(`✓ Linked to workspace: ${projectConfig.project_name}`));
+  // Stamp project_id from the running desktop app when available — GitHub only.
+  if (provider === 'github') {
+    const session = readAppSessionInfo();
+    if (session) {
+      const orgLogin = extractOrgLogin(targetDir);
+      if (orgLogin) {
+        const projectConfig = await fetchGitHubProjectConfig(orgLogin, session.port, session.token);
+        if (projectConfig) {
+          patchProjectId(targetDir, projectConfig.project_id);
+          console.log(chalk.green(`✓ Linked to workspace: ${projectConfig.project_name}`));
+        }
       }
     }
   }
@@ -183,7 +186,7 @@ export async function initCommand(options: InitOptions) {
       return;
     }
 
-    await setupInteractiveFlow(targetDir, options.defaults ?? false, options.noAttribution ?? false);
+    await setupInteractiveFlow(targetDir, options.defaults ?? false, options.noAttribution ?? false, provider);
   } catch (error) {
     console.error(chalk.red('Setup failed:'), error instanceof Error ? error.message : String(error));
     process.exit(1);

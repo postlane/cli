@@ -274,4 +274,51 @@ describe('setupInteractiveFlow', () => {
     expect(configWritten).toBe(true);
     expect(registerCalled).toBe(true);
   });
+
+  it('does NOT call fetchGitHubProjectConfig when provider is gitlab', async () => {
+    vi.resetModules();
+
+    let fetchCalled = false;
+
+    vi.doMock('../src/init/questions.js', () => ({
+      askSetupQuestions: async () => ({
+        llmProvider: 'anthropic', llmModel: 'claude-sonnet-4-6',
+        schedulerProvider: 'zernio', schedulerApiKey: '',
+        repoType: 'open-source-library', style: 'Direct.',
+        utmCampaign: '', author: 'Test',
+      }),
+    }));
+    vi.doMock('../src/init/config_writer.js', () => ({
+      writeConfigFiles: () => {},
+      patchProjectId: () => {},
+    }));
+    vi.doMock('../src/commands/register.js', () => ({
+      registerCommand: async () => {},
+    }));
+    vi.doMock('../src/git/github_session.js', () => ({
+      readAppSessionInfo: () => ({ port: 47312, token: 'test-token' }),
+      fetchGitHubProjectConfig: async () => { fetchCalled = true; return null; },
+    }));
+    vi.doMock('../src/git/provider.js', () => ({
+      extractOrgLogin: () => 'some-org',
+    }));
+
+    const tmpDir = makeTmpDir();
+    mkdirSync(join(tmpDir, '.git'), { recursive: true });
+
+    try {
+      const { setupInteractiveFlow } = await import('../src/commands/init.js');
+      await setupInteractiveFlow(tmpDir, false, false, 'gitlab');
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+      vi.doUnmock('../src/init/questions.js');
+      vi.doUnmock('../src/init/config_writer.js');
+      vi.doUnmock('../src/commands/register.js');
+      vi.doUnmock('../src/git/github_session.js');
+      vi.doUnmock('../src/git/provider.js');
+      vi.resetModules();
+    }
+
+    expect(fetchCalled).toBe(false);
+  });
 });

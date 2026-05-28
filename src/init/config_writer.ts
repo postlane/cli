@@ -5,6 +5,7 @@ import { join, dirname, isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
 import type { SetupAnswers } from '../init/questions.js';
 import { resolveSkillsSource } from './skills_source.js';
+import { SKILL_FILE_NAMES } from '../app/skill_manifest.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -17,20 +18,8 @@ export function validatePlatforms(platforms: string[]): string[] {
   return invalid;
 }
 
-// All skill commands — base v1 + v1.1
-const ALL_SKILL_COMMANDS = [
-  'draft-post',
-  'register-repo',
-  'draft-changelog',
-  'draft-show-hn',
-  'draft-product-hunt',
-  'redraft-post',
-  'draft-x',
-  'draft-bluesky',
-  'draft-mastodon',
-  'draft-linkedin',
-  'draft-substack',
-];
+// Derive command names from the shared manifest (strip .md suffix).
+const ALL_SKILL_COMMANDS = SKILL_FILE_NAMES.map((f) => f.replace(/\.md$/, ''));
 
 export interface ConfigJson {
   version: number;

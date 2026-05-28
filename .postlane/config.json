@@ -1,0 +1,21 @@
+{
+  "base_url": "https://postlane.dev",
+  "connected_platforms": [
+    "bluesky"
+  ],
+  "llm": {
+    "model": "claude-sonnet-4-6",
+    "provider": "anthropic"
+  },
+  "project_id": "808a2e38-5d86-4ddf-9714-81f5ac17de39",
+  "scheduler": {
+    "account_ids": {
+      "bluesky": "6a14c6302b2567671a39db87"
+    },
+    "account_names": {
+      "bluesky": "postlane.bsky.social",
+      "upload_post": "postlane"
+    }
+  },
+  "version": 1
+}
