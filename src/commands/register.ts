@@ -5,6 +5,7 @@ import { homedir } from 'os';
 import { join, basename } from 'path';
 import chalk from 'chalk';
 import { randomUUID } from 'crypto';
+import { isValidPort, KNOWN_INSTALL_PATHS, isAppHealthy } from '../app/health.js';
 
 export function writeSecureJson(filePath: string, data: unknown): void {
   writeFileSync(filePath, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
@@ -25,21 +26,6 @@ interface ReposConfig {
   repos: Repo[];
 }
 
-const KNOWN_INSTALL_PATHS: Record<string, string[]> = {
-  darwin: [
-    '/Applications/Postlane.app',
-    join(homedir(), 'Applications/Postlane.app'),
-  ],
-  linux: [
-    '/usr/bin/postlane',
-    '/usr/local/bin/postlane',
-    join(homedir(), '.local/bin/postlane'),
-  ],
-  win32: [
-    join(process.env.LOCALAPPDATA || '', 'Programs\\Postlane\\Postlane.exe'),
-    join(process.env.PROGRAMFILES || '', 'Postlane\\Postlane.exe'),
-  ],
-};
 
 export async function registerCommand() {
   try {
@@ -75,9 +61,34 @@ export async function registerCommand() {
   }
 }
 
-function isValidPort(value: string): boolean {
-  const n = Number(value);
-  return Number.isInteger(n) && n >= 1 && n <= 65535;
+interface RegisterResponse {
+  success: boolean;
+  name: string;
+}
+
+function isRegisterResponse(val: unknown): val is RegisterResponse {
+  return (
+    typeof val === 'object' &&
+    val !== null &&
+    typeof (val as Record<string, unknown>).success === 'boolean' &&
+    typeof (val as Record<string, unknown>).name === 'string'
+  );
+}
+
+function isReposConfig(val: unknown): val is ReposConfig {
+  if (typeof val !== 'object' || val === null) return false;
+  const obj = val as Record<string, unknown>;
+  if (typeof obj.version !== 'number' || !Array.isArray(obj.repos)) return false;
+  return (obj.repos as unknown[]).every(
+    (r) =>
+      typeof r === 'object' &&
+      r !== null &&
+      typeof (r as Record<string, unknown>).id === 'string' &&
+      typeof (r as Record<string, unknown>).name === 'string' &&
+      typeof (r as Record<string, unknown>).path === 'string' &&
+      typeof (r as Record<string, unknown>).active === 'boolean' &&
+      typeof (r as Record<string, unknown>).added_at === 'string',
+  );
 }
 
 async function detectAppState(): Promise<AppState> {
@@ -89,26 +100,8 @@ async function detectAppState(): Promise<AppState> {
     const port = readFileSync(portPath, 'utf-8').trim();
     if (!isValidPort(port)) {
       console.warn(`[postlane] port file contains invalid port value '${port}' — skipping health check`);
-    } else {
-      try {
-        // loopback only — HTTPS not available on localhost
-        const healthUrl = `http://127.0.0.1:${port}/health`;
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 200);
-
-        const response = await fetch(healthUrl, {
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-          return 'running';
-        }
-      } catch (error) {
-        // Health check failed - app not running
-      }
+    } else if (await isAppHealthy(port)) {
+      return 'running';
     }
   }
 
@@ -153,7 +146,8 @@ async function handleRunningState(repoPath: string, repoName: string): Promise<v
     });
 
     if (response.ok) {
-      const result = await response.json() as { success: boolean; name: string };
+      const raw: unknown = await response.json();
+      const result = isRegisterResponse(raw) ? raw : { success: true, name: repoName };
       console.log(chalk.green(`✓ ${result.name} registered with Postlane.`));
       console.log(chalk.gray('The app is now watching this repo.'));
     } else {
@@ -177,19 +171,13 @@ function handleInstalledState(repoPath: string, repoName: string): void {
     try {
       const content = readFileSync(reposPath, 'utf-8');
       const parsed: unknown = JSON.parse(content);
-      if (
-        typeof parsed !== 'object' ||
-        parsed === null ||
-        !('version' in parsed) ||
-        (parsed as Record<string, unknown>).version !== 1 ||
-        !Array.isArray((parsed as Record<string, unknown>).repos)
-      ) {
+      if (!isReposConfig(parsed)) {
         throw new Error(
           `repos.json at ${reposPath} has an invalid schema: expected { version: 1, repos: [...] }. ` +
           'Delete the file and run `postlane register` again to recreate it.',
         );
       }
-      config = parsed as ReposConfig;
+      config = parsed;
     } catch (error) {
       if (error instanceof SyntaxError) {
         console.warn(chalk.yellow(`Warning: repos.json at ${reposPath} is not valid JSON. Creating new file.`));
