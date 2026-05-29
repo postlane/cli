@@ -413,16 +413,17 @@ describe('askSetupQuestions — mastodon instance (useDefaults)', () => {
 // 20.8.1 — initCommand accepts a non-git parent directory (workspace root)
 // ---------------------------------------------------------------------------
 
-describe('initCommand — workspace root (20.8.1)', () => {
-  it('accepts a non-git parent directory that contains child git repos', async () => {
+// 20.8.1 — non-Git dirs now route to workspace init (22.4.1).
+// The old assertion ("not a git repository") no longer applies for dirs with child repos;
+// for dirs without repos the workspace init flow still exits 1 (missing session token).
+describe('initCommand — workspace root (20.8.1 / 22.4.1)', () => {
+  it('routes a non-git parent directory with child repos to workspace init', async () => {
     const { vi } = await import('vitest');
     vi.resetModules();
 
-    vi.doMock('../src/commands/register.js', () => ({
-      registerCommand: async () => {},
-    }));
-    vi.doMock('../src/init/questions.js', () => ({
-      askSetupQuestions: async () => MINIMAL_ANSWERS,
+    let workspaceInitCalled = false;
+    vi.doMock('../src/commands/workspace_init.js', () => ({
+      workspaceInitCommand: async () => { workspaceInitCalled = true; },
     }));
 
     const wsDir = join(tmpdir(), `postlane-ws-init-${Date.now()}`);
@@ -432,36 +433,22 @@ describe('initCommand — workspace root (20.8.1)', () => {
     const origCwd = process.cwd();
     process.chdir(wsDir);
 
-    const errorMessages: string[] = [];
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
-      errorMessages.push(args.map(String).join(' '));
-    });
-    let exitCode: number | undefined;
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
-      exitCode = code as number;
-      throw new Error('exit');
-    });
-
     try {
       const { initCommand } = await import('../src/commands/init.js');
       await initCommand({ defaults: true });
     } catch {
-      // swallow process.exit throw
+      // swallow
+    } finally {
+      process.chdir(origCwd);
+      vi.doUnmock('../src/commands/workspace_init.js');
+      vi.resetModules();
+      rmSync(wsDir, { recursive: true, force: true });
     }
 
-    consoleSpy.mockRestore();
-    exitSpy.mockRestore();
-    process.chdir(origCwd);
-    vi.doUnmock('../src/commands/register.js');
-    vi.doUnmock('../src/init/questions.js');
-    vi.resetModules();
-    rmSync(wsDir, { recursive: true, force: true });
-
-    expect(exitCode).not.toBe(1);
-    expect(errorMessages.join('\n')).not.toMatch(/not a git repository/i);
+    expect(workspaceInitCalled).toBe(true);
   });
 
-  it('rejects a directory with no .git/ and no child git repos', async () => {
+  it('routes an empty non-git dir to workspace init (exits 1 without session token)', async () => {
     const { vi } = await import('vitest');
     vi.resetModules();
 
@@ -486,16 +473,16 @@ describe('initCommand — workspace root (20.8.1)', () => {
       await initCommand({});
     } catch {
       // swallow process.exit throw
+    } finally {
+      consoleSpy.mockRestore();
+      exitSpy.mockRestore();
+      process.chdir(origCwd);
+      rmSync(emptyDir, { recursive: true, force: true });
+      vi.resetModules();
     }
 
-    consoleSpy.mockRestore();
-    exitSpy.mockRestore();
-    process.chdir(origCwd);
-    rmSync(emptyDir, { recursive: true, force: true });
-    vi.resetModules();
-
+    // With 22.4.1 workspace routing, exits because no session token (not because "not a git repo").
     expect(exitCode).toBe(1);
-    expect(errorMessages.join('\n')).toMatch(/not a git repository/i);
   });
 });
 
