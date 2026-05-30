@@ -19,9 +19,10 @@ program
 
 program
   .command('init')
-  .description('Set up Postlane in the current repository')
+  .description('Set up Postlane in the current repository or workspace')
   .option('--defaults', 'Use default values for all questions')
   .option('--no-attribution', 'Disable "Built with Postlane" attribution in posts')
+  .option('--workspace [path]', 'Initialise as a workspace; optional path defaults to CWD')
   .action(initCommand);
 
 program

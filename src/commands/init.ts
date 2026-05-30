@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-import { mkdirSync, lstatSync, readdirSync } from 'fs';
+import { mkdirSync, lstatSync, readdirSync, existsSync } from 'fs';
 import { homedir } from 'os';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { askSetupQuestions } from '../init/questions.js';
@@ -10,10 +10,12 @@ import { writeConfigFiles, writeGitHubConfigFiles, patchProjectId, checkPartialI
 import { detectGitProvider, extractOrgLogin } from '../git/provider.js';
 import { fetchGitHubProjectConfig, readAppSessionInfo } from '../git/github_session.js';
 import { registerCommand } from './register.js';
+import { workspaceInitCommand } from './workspace_init.js';
 
 interface InitOptions {
   defaults?: boolean;
   noAttribution?: boolean;
+  workspace?: string | boolean;
 }
 
 /// Checks Node.js version and validates the target directory is a git repo or workspace root.
@@ -169,8 +171,26 @@ export async function setupInteractiveFlow(
 
 export async function initCommand(options: InitOptions) {
   try {
-    mkdirSync(join(homedir(), '.postlane'), { recursive: true });
+    const postlaneDir = join(homedir(), '.postlane');
+    mkdirSync(postlaneDir, { recursive: true });
+
+    // 22.4.2: --workspace [path] flag forces workspace init mode.
+    if (options.workspace !== undefined) {
+      const wsPath = typeof options.workspace === 'string'
+        ? resolve(options.workspace)
+        : process.cwd();
+      await workspaceInitCommand(wsPath, postlaneDir);
+      return;
+    }
+
     const targetDir = process.cwd();
+
+    // 22.4.1: auto-detect workspace root (no .git, has child git repos).
+    if (!existsSync(join(targetDir, '.git'))) {
+      await workspaceInitCommand(targetDir, postlaneDir);
+      return;
+    }
+
     validateEnvironment(targetDir);
 
     const initStatus = checkPartialInit(targetDir);
