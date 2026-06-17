@@ -86,23 +86,7 @@ export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void
     'utf-8'
   );
 
-  // Step 3: Write .gitignore
-  const gitignoreContent = `# Postlane
-runner/node_modules/
-runner/dist/
-posts/**/original.json
-config.local.json
-`;
-
-  writeFileSync(
-    join(postlaneDir, '.gitignore'),
-    gitignoreContent,
-    'utf-8'
-  );
-
-  // Steps 4-8: Copy bundled skill files.
-  // .claude/commands/ — Claude Code slash commands (read by Claude Code on launch)
-  // Steps 4-8: Copy skill files (shared with writeGitHubConfigFiles)
+  writePostlaneGitignore(postlaneDir);
   copySkillFiles(targetDir, postlaneDir);
 }
 
@@ -136,13 +120,16 @@ export function writeGitHubConfigFiles(
   const localConfig: ConfigLocalJson = { scheduler: { provider: 'zernio' } };
   writeFileSync(join(postlaneDir, 'config.local.json'), JSON.stringify(localConfig, null, 2), 'utf-8');
 
+  writePostlaneGitignore(postlaneDir);
+  copySkillFiles(targetDir, postlaneDir);
+}
+
+function writePostlaneGitignore(postlaneDir: string): void {
   writeFileSync(
     join(postlaneDir, '.gitignore'),
-    `# Postlane\nrunner/node_modules/\nrunner/dist/\nposts/**/original.json\nconfig.local.json\n`,
+    '# Postlane\nrunner/node_modules/\nrunner/dist/\nposts/**/original.json\nconfig.local.json\n',
     'utf-8',
   );
-
-  copySkillFiles(targetDir, postlaneDir);
 }
 
 function copySkillFiles(targetDir: string, postlaneDir: string): void {
