@@ -83,7 +83,7 @@ export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void
   writeFileSync(
     join(postlaneDir, 'config.local.json'),
     JSON.stringify(localConfig, null, 2),
-    'utf-8'
+    { encoding: 'utf-8', mode: 0o600 }
   );
 
   writePostlaneGitignore(postlaneDir);
@@ -118,7 +118,7 @@ export function writeGitHubConfigFiles(
   writeFileSync(join(postlaneDir, 'config.json'), JSON.stringify(config, null, 2), 'utf-8');
 
   const localConfig: ConfigLocalJson = { scheduler: { provider: 'zernio' } };
-  writeFileSync(join(postlaneDir, 'config.local.json'), JSON.stringify(localConfig, null, 2), 'utf-8');
+  writeFileSync(join(postlaneDir, 'config.local.json'), JSON.stringify(localConfig, null, 2), { encoding: 'utf-8', mode: 0o600 });
 
   writePostlaneGitignore(postlaneDir);
   copySkillFiles(targetDir, postlaneDir);
