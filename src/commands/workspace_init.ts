@@ -87,6 +87,40 @@ export function buildVoiceGuideOutput(workspacePath: string): string {
   ].join('\n');
 }
 
+// ── Child repo adoption (22.4.12) ─────────────────────────────────────────────
+
+/** Reads `project_id` from `{childPath}/.postlane/config.json` for each path that has one. */
+export function readChildRepoProjectIds(
+  childPaths: string[],
+): { path: string; projectId: string }[] {
+  const results: { path: string; projectId: string }[] = [];
+  for (const childPath of childPaths) {
+    const configPath = join(childPath, '.postlane', 'config.json');
+    if (!existsSync(configPath)) continue;
+    try {
+      const raw: unknown = JSON.parse(readFileSync(configPath, 'utf-8'));
+      if (typeof raw !== 'object' || raw === null) continue;
+      const pid = (raw as Record<string, unknown>).project_id;
+      if (typeof pid === 'string' && pid.length > 0) {
+        results.push({ path: childPath, projectId: pid });
+      }
+    } catch {
+      // skip unreadable / malformed configs
+    }
+  }
+  return results;
+}
+
+/** Returns the common project_id if all children agree, or null with hasMismatch=true if they disagree. */
+export function resolveProjectIdFromChildren(
+  children: { path: string; projectId: string }[],
+): { projectId: string | null; hasMismatch: boolean } {
+  if (children.length === 0) return { projectId: null, hasMismatch: false };
+  const unique = new Set(children.map((c) => c.projectId));
+  if (unique.size === 1) return { projectId: children[0].projectId, hasMismatch: false };
+  return { projectId: null, hasMismatch: true };
+}
+
 // ── Core implementation (pure — no process.exit) ──────────────────────────────
 
 export async function workspaceInitImpl(
@@ -151,17 +185,48 @@ export async function workspaceInitCommand(
     process.exit(1);
   }
 
+  const configPath = join(dir, 'config.json');
+  const isReinit = existsSync(configPath);
+
+  // 22.4.12: read project_ids from existing child repo configs before deciding.
+  const childPaths = discoverWorkspaceChildRepos(dir);
+  const childIds = readChildRepoProjectIds(childPaths);
+  const { projectId: childProjectId, hasMismatch } = resolveProjectIdFromChildren(childIds);
+
+  if (hasMismatch) {
+    console.warn(chalk.yellow(
+      'Warning: child repos have different project_ids. Workspace project_id will be determined from your session.',
+    ));
+  }
+
   let projectId: string | null = null;
-  if (session.port !== null) {
+
+  if (isReinit) {
+    // Workspace wins on conflict (22.4.12): keep existing workspace project_id.
+    const existing: unknown = JSON.parse(readFileSync(configPath, 'utf-8'));
+    const existingPid = (typeof existing === 'object' && existing !== null)
+      ? (existing as Record<string, unknown>).project_id
+      : undefined;
+    projectId = typeof existingPid === 'string' ? existingPid : null;
+    if (projectId && childProjectId && projectId !== childProjectId) {
+      console.warn(chalk.yellow(
+        `Warning: child repos have project_id ${childProjectId} but workspace uses ${projectId}. Keeping workspace id.`,
+      ));
+    }
+  }
+
+  if (!projectId) {
+    // For new workspaces: child ids take priority over live session (adoption).
+    projectId = childProjectId;
+  }
+
+  if (!projectId && session.port !== null) {
     projectId = await fetchProjectId(session.port, session.token);
   }
 
   if (!projectId) {
     projectId = readProjectIdFromExistingConfig(postlaneDir) ?? randomUUID();
   }
-
-  const configPath = join(dir, 'config.json');
-  const isReinit = existsSync(configPath);
 
   if (isReinit) {
     console.log(chalk.yellow(`Workspace already initialised at ${dir}. Updating child repo list.`));

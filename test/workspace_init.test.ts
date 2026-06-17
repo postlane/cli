@@ -26,6 +26,8 @@ import {
   workspaceInitImpl,
   workspaceInitCommand,
   readWorkspaceSession,
+  readChildRepoProjectIds,
+  resolveProjectIdFromChildren,
 } from '../src/commands/workspace_init.js';
 import type { WorkspaceEntry, GlobalReposV2 } from '../src/app/workspace_repos.js';
 
@@ -434,5 +436,99 @@ describe('readWorkspaceSession', () => {
     const result = readWorkspaceSession(dir);
     expect(result?.port).toBe(47312);
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// ── 22.4.12: workspace adoption ───────────────────────────────────────────────
+
+describe('readChildRepoProjectIds', () => {
+  it('returns project_ids from child repos that have .postlane/config.json', () => {
+    const dir = join(tmpdir(), `postlane-adopt-${tmpId()}`);
+    const repoA = join(dir, 'repo-a');
+    const repoB = join(dir, 'repo-b');
+    mkdirSync(join(repoA, '.postlane'), { recursive: true });
+    mkdirSync(join(repoB, '.postlane'), { recursive: true });
+    writeFileSync(join(repoA, '.postlane', 'config.json'), JSON.stringify({ project_id: 'pid-aaa' }));
+    writeFileSync(join(repoB, '.postlane', 'config.json'), JSON.stringify({ project_id: 'pid-bbb' }));
+
+    const result = readChildRepoProjectIds([repoA, repoB]);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ path: repoA, projectId: 'pid-aaa' });
+    expect(result[1]).toEqual({ path: repoB, projectId: 'pid-bbb' });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('skips child repos with no .postlane/config.json', () => {
+    const dir = join(tmpdir(), `postlane-adopt-${tmpId()}`);
+    const repoA = join(dir, 'repo-a');
+    const repoB = join(dir, 'repo-b');
+    mkdirSync(join(repoA, '.postlane'), { recursive: true });
+    mkdirSync(join(repoB, '.postlane'), { recursive: true });
+    writeFileSync(join(repoA, '.postlane', 'config.json'), JSON.stringify({ project_id: 'pid-aaa' }));
+    // repoB has no config.json
+
+    const result = readChildRepoProjectIds([repoA, repoB]);
+    expect(result).toHaveLength(1);
+    expect(result[0].projectId).toBe('pid-aaa');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('skips child repos whose config.json has no project_id field', () => {
+    const dir = join(tmpdir(), `postlane-adopt-${tmpId()}`);
+    const repoA = join(dir, 'repo-a');
+    mkdirSync(join(repoA, '.postlane'), { recursive: true });
+    writeFileSync(join(repoA, '.postlane', 'config.json'), JSON.stringify({ version: 1 }));
+
+    const result = readChildRepoProjectIds([repoA]);
+    expect(result).toHaveLength(0);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('resolveProjectIdFromChildren', () => {
+  it('returns the common project_id when all children agree', () => {
+    const children = [
+      { path: '/a', projectId: 'pid-x' },
+      { path: '/b', projectId: 'pid-x' },
+    ];
+    const { projectId, hasMismatch } = resolveProjectIdFromChildren(children);
+    expect(projectId).toBe('pid-x');
+    expect(hasMismatch).toBe(false);
+  });
+
+  it('returns null and hasMismatch true when children disagree', () => {
+    const children = [
+      { path: '/a', projectId: 'pid-x' },
+      { path: '/b', projectId: 'pid-y' },
+    ];
+    const { projectId, hasMismatch } = resolveProjectIdFromChildren(children);
+    expect(projectId).toBeNull();
+    expect(hasMismatch).toBe(true);
+  });
+
+  it('returns null and hasMismatch false when no children have project_ids', () => {
+    const { projectId, hasMismatch } = resolveProjectIdFromChildren([]);
+    expect(projectId).toBeNull();
+    expect(hasMismatch).toBe(false);
+  });
+});
+
+describe('22.4.12: workspace adoption uses child repo project_ids', () => {
+  it('workspaceInitImpl uses project_id from child repos when all agree', async () => {
+    const dir = join(tmpdir(), `postlane-adopt-full-${tmpId()}`);
+    const repoA = join(dir, 'repo-a');
+    mkdirSync(join(repoA, '.git'), { recursive: true });
+    mkdirSync(join(repoA, '.postlane'), { recursive: true });
+    writeFileSync(join(repoA, '.postlane', 'config.json'), JSON.stringify({ project_id: 'adopted-pid' }));
+    const postlaneDir = join(tmpdir(), `postlane-fake-${tmpId()}`);
+    mkdirSync(postlaneDir, { recursive: true });
+    writeFileSync(join(postlaneDir, 'local.token'), 'tok');
+
+    const result = await workspaceInitImpl(dir, 'adopted-pid', postlaneDir, { port: null, token: 'tok' });
+    const wsConfig = JSON.parse(readFileSync(join(dir, 'config.json'), 'utf-8'));
+    expect(wsConfig.project_id).toBe('adopted-pid');
+    expect(result.projectId).toBe('adopted-pid');
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(postlaneDir, { recursive: true, force: true });
   });
 });

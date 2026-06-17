@@ -2,7 +2,7 @@
 // Tests for §7.6.1 (v1.1 skill file copies) and §7.4.5 (attribution prompt)
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, rmSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { writeConfigFiles, validatePlatforms, patchProjectId, writeGitHubConfigFiles } from '../src/init/config_writer.js';
@@ -520,6 +520,21 @@ describe('writeConfigFiles — config.local.json split (20.9)', () => {
     writeConfigFiles(repoDir, MINIMAL_ANSWERS);
     const config = JSON.parse(readFileSync(join(repoDir, '.postlane', 'config.json'), 'utf8'));
     expect(config.scheduler).toBeUndefined();
+  });
+
+  // 22.1.6a — config.local.json must be 0600 on Unix (SECURITY — never violate)
+  it('writeConfigFiles writes config.local.json with 0600 permissions on Unix', { skip: process.platform === 'win32' }, () => {
+    writeConfigFiles(repoDir, MINIMAL_ANSWERS);
+    const path = join(repoDir, '.postlane', 'config.local.json');
+    const mode = statSync(path).mode & 0o777;
+    expect(mode).toBe(0o600);
+  });
+
+  it('writeGitHubConfigFiles writes config.local.json with 0600 permissions on Unix', { skip: process.platform === 'win32' }, () => {
+    writeGitHubConfigFiles(repoDir, 'proj-123', 'my-lib');
+    const path = join(repoDir, '.postlane', 'config.local.json');
+    const mode = statSync(path).mode & 0o777;
+    expect(mode).toBe(0o600);
   });
 });
 
