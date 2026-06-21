@@ -532,3 +532,100 @@ describe('22.4.12: workspace adoption uses child repo project_ids', () => {
     rmSync(postlaneDir, { recursive: true, force: true });
   });
 });
+
+// ── 22.4.12 command-level adoption tests ─────────────────────────────────────
+
+describe('22.4.12: workspaceInitCommand — command-level adoption', () => {
+  let wsDir: string;
+  let plDir: string;
+
+  beforeEach(() => {
+    wsDir = join(tmpdir(), `postlane-adopt-cmd-${tmpId()}`);
+    plDir = makeFakePostlaneDir(true, null); // token present, no port
+  });
+
+  afterEach(() => {
+    rmSync(wsDir, { recursive: true, force: true });
+    rmSync(plDir, { recursive: true, force: true });
+  });
+
+  it('adopts child project_id into workspace config when all children agree and workspace is new', async () => {
+    const { vi } = await import('vitest');
+    const repoA = join(wsDir, 'repo-a');
+    mkdirSync(join(repoA, '.git'), { recursive: true });
+    mkdirSync(join(repoA, '.postlane'), { recursive: true });
+    writeFileSync(
+      join(repoA, '.postlane', 'config.json'),
+      JSON.stringify({ project_id: 'child-adopted-pid' }),
+    );
+
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await workspaceInitCommand(wsDir, plDir);
+    } finally {
+      vi.restoreAllMocks();
+    }
+
+    const wsConfig = JSON.parse(readFileSync(join(wsDir, 'config.json'), 'utf-8')) as Record<string, unknown>;
+    expect(wsConfig.project_id).toBe('child-adopted-pid');
+  });
+
+  it('workspace project_id wins on reinit when child has a different project_id; warning is printed', async () => {
+    const { vi } = await import('vitest');
+    // Pre-create workspace with its own project_id
+    mkdirSync(wsDir, { recursive: true });
+    writeFileSync(join(wsDir, 'config.json'), JSON.stringify({ project_id: 'ws-pid', schema_version: 4 }));
+    // Child repo has a different project_id
+    const repoA = join(wsDir, 'repo-a');
+    mkdirSync(join(repoA, '.git'), { recursive: true });
+    mkdirSync(join(repoA, '.postlane'), { recursive: true });
+    writeFileSync(
+      join(repoA, '.postlane', 'config.json'),
+      JSON.stringify({ project_id: 'child-pid' }),
+    );
+
+    const warnMessages: string[] = [];
+    vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
+      warnMessages.push(args.map(String).join(' '));
+    });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await workspaceInitCommand(wsDir, plDir);
+    } finally {
+      vi.restoreAllMocks();
+    }
+
+    // Workspace project_id must be preserved
+    const wsConfig = JSON.parse(readFileSync(join(wsDir, 'config.json'), 'utf-8')) as Record<string, unknown>;
+    expect(wsConfig.project_id).toBe('ws-pid');
+    // Warning must mention both IDs
+    expect(warnMessages.some((m) => m.includes('child-pid') && m.includes('ws-pid'))).toBe(true);
+  });
+
+  it('per-repo .postlane/config.json files are not deleted or modified during adoption', async () => {
+    const { vi } = await import('vitest');
+    const repoA = join(wsDir, 'repo-a');
+    mkdirSync(join(repoA, '.git'), { recursive: true });
+    mkdirSync(join(repoA, '.postlane'), { recursive: true });
+    writeFileSync(
+      join(repoA, '.postlane', 'config.json'),
+      JSON.stringify({ project_id: 'child-pid', author: 'Test Author' }),
+    );
+
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await workspaceInitCommand(wsDir, plDir);
+    } finally {
+      vi.restoreAllMocks();
+    }
+
+    expect(existsSync(join(repoA, '.postlane', 'config.json'))).toBe(true);
+    const childConfig = JSON.parse(
+      readFileSync(join(repoA, '.postlane', 'config.json'), 'utf-8'),
+    ) as Record<string, unknown>;
+    expect(childConfig.project_id).toBe('child-pid');
+    expect(childConfig.author).toBe('Test Author');
+  });
+});

@@ -16,6 +16,8 @@ interface InitOptions {
   defaults?: boolean;
   noAttribution?: boolean;
   workspace?: string | boolean;
+  /** Override the ~/.postlane directory — used in tests to isolate from the real session. */
+  postlaneDir?: string;
 }
 
 /// Checks Node.js version and validates the target directory is a git repo or workspace root.
@@ -171,7 +173,7 @@ export async function setupInteractiveFlow(
 
 export async function initCommand(options: InitOptions) {
   try {
-    const postlaneDir = join(homedir(), '.postlane');
+    const postlaneDir = options.postlaneDir ?? join(homedir(), '.postlane');
     mkdirSync(postlaneDir, { recursive: true });
 
     // 22.4.2: --workspace [path] flag forces workspace init mode.

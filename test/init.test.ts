@@ -453,7 +453,10 @@ describe('initCommand — workspace root (20.8.1 / 22.4.1)', () => {
     vi.resetModules();
 
     const emptyDir = join(tmpdir(), `postlane-empty-init-${Date.now()}`);
+    // Fake postlane dir with NO local.token — simulates a user who hasn't signed in.
+    const fakePlDir = join(tmpdir(), `postlane-fake-pl-${Date.now()}`);
     mkdirSync(emptyDir, { recursive: true });
+    mkdirSync(fakePlDir, { recursive: true });
 
     const origCwd = process.cwd();
     process.chdir(emptyDir);
@@ -470,7 +473,7 @@ describe('initCommand — workspace root (20.8.1 / 22.4.1)', () => {
 
     try {
       const { initCommand } = await import('../src/commands/init.js');
-      await initCommand({});
+      await initCommand({ postlaneDir: fakePlDir });
     } catch {
       // swallow process.exit throw
     } finally {
@@ -478,6 +481,7 @@ describe('initCommand — workspace root (20.8.1 / 22.4.1)', () => {
       exitSpy.mockRestore();
       process.chdir(origCwd);
       rmSync(emptyDir, { recursive: true, force: true });
+      rmSync(fakePlDir, { recursive: true, force: true });
       vi.resetModules();
     }
 
