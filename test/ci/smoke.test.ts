@@ -44,8 +44,21 @@ describe.skipIf(!shouldRunSmoke)('CLI smoke tests', () => {
     savedToken = existsSync(TOKEN_FILE) ? readFileSync(TOKEN_FILE) : null;
 
     mkdirSync(POSTLANE_DIR, { recursive: true });
-    await start(); // writes port to ~/.postlane/port
+    const { port } = await start(); // writes port to ~/.postlane/port
     writeFileSync(TOKEN_FILE, githubToken, { mode: 0o600 });
+
+    // Verify mock server responds to /github-project-config before running CLI tests.
+    // This isolates mock-server failures from CLI subprocess failures.
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 3000);
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/github-project-config?org_login=test`, { signal: ctrl.signal });
+      console.log(`[smoke] mock /github-project-config status: ${r.status}`);
+    } catch (e) {
+      console.error(`[smoke] mock /github-project-config FAILED: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      clearTimeout(tid);
+    }
   });
 
   afterAll(async () => {
@@ -79,6 +92,11 @@ describe.skipIf(!shouldRunSmoke)('CLI smoke tests', () => {
 
       const result = spawnSync('node', [CLI, 'init'], { cwd: tmpDir, encoding: 'utf-8' });
 
+      if (result.status !== 0) {
+        console.error(`[smoke_init_github] exit ${result.status}`);
+        console.error(`[smoke_init_github] stdout: ${result.stdout}`);
+        console.error(`[smoke_init_github] stderr: ${result.stderr}`);
+      }
       expect(result.status).toBe(0);
       const configPath = join(tmpDir, '.postlane', 'config.json');
       expect(existsSync(configPath)).toBe(true);
