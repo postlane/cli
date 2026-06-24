@@ -5,7 +5,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 
 const PROJECT_CONFIG = {
-  project_id: 'ci-test-project-id',
+  project_id: null, // intentionally broken for 23.3.14 smoke gate test
   project_name: 'CI Test Project',
 };
 

@@ -40,7 +40,8 @@ describe('mock-desktop-server', () => {
     const res = await fetch(`http://127.0.0.1:${port}/github-project-config?org_login=test-org`);
     expect(res.status).toBe(200);
     const data: unknown = await res.json();
-    expect(data).toEqual({ project_id: 'ci-test-project-id', project_name: 'CI Test Project' });
+    // project_id intentionally null for 23.3.14 smoke gate breakage test.
+    expect(data).toEqual({ project_id: null, project_name: 'CI Test Project' });
   });
 
   it('GET /health returns 200', async () => {
