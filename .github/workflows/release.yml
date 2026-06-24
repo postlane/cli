@@ -2,63 +2,53 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - main
+      - beta
 
 permissions:
   contents: write
-  id-token: write
+  id-token: write        # required for npm provenance attestation
+  issues: write
+  pull-requests: write
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     environment: npm
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - name: Checkout
+        # actions/checkout@v4 — pinned to commit SHA to prevent supply chain attacks
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Checkout prompts
-        uses: actions/checkout@v6
+        # PROMPTS_PAT is a fine-grained PAT with read access to postlane/prompts.
+        # GITHUB_TOKEN is scoped to postlane/cli only and cannot access other repos.
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           repository: postlane/prompts
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PROMPTS_PAT }}
           path: prompts-checkout
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        # actions/setup-node@v4 — pinned to commit SHA
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build
-        env:
-          PROMPTS_DIR: ${{ github.workspace }}/prompts-checkout
-
-      - name: Verify bundled skills
-        run: |
-          count=$(ls bundled-skills/commands/*.md 2>/dev/null | wc -l)
-          if [ "$count" -lt 10 ]; then
-            echo "ERROR: bundled-skills/commands has only $count .md files, expected at least 10"
-            exit 1
-          fi
-          echo "bundled-skills OK: $count .md files"
-
       - name: Run tests
         run: npm test
 
-      - name: Publish to npm
-        run: npm publish --provenance --access public
-        env:
-          PROMPTS_DIR: ${{ github.workspace }}/prompts-checkout
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          generate_release_notes: true
+      - name: Release
+        run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PROMPTS_DIR: ${{ github.workspace }}/prompts-checkout

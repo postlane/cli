@@ -27,8 +27,13 @@
     "prepublishOnly": "npm run clean && npm run build && npm test"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.8",
+    "@semantic-release/npm": "^13.1.5",
     "@types/inquirer": "^9.0.9",
     "@types/node": "^20.0.0",
+    "semantic-release": "^25.0.5",
     "typescript": "^5.0.0",
     "vitest": "^4.1.5"
   },
@@ -38,6 +43,7 @@
     "inquirer": "^9.3.8"
   },
   "overrides": {
-    "vite": ">=8.0.16"
+    "vite": ">=8.0.16",
+    "undici": ">=6.27.0"
   }
 }
