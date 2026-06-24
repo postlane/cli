@@ -22,9 +22,11 @@ export function start(homeDir?: string): Promise<{ port: number }> {
     const s = http.createServer((req, res) => {
       const url = req.url ?? '';
       if (req.method === 'GET' && url.startsWith('/github-project-config')) {
+        req.resume(); // drain request stream before responding (required on Linux)
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(PROJECT_CONFIG));
       } else if (req.method === 'GET' && url === '/health') {
+        req.resume();
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('ok');
       } else if (req.method === 'POST' && url === '/register') {

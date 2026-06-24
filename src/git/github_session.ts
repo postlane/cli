@@ -52,9 +52,13 @@ export async function fetchGitHubProjectConfig(
 ): Promise<GitHubProjectConfig | null> {
   const url = `http://127.0.0.1:${port}/github-project-config?org_login=${encodeURIComponent(orgLogin)}`;
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     if (!response.ok) return null;
     const data: unknown = await response.json();
     if (!isGitHubProjectConfig(data)) {
