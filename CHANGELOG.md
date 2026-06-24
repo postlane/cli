@@ -1,3 +1,10 @@
+# [0.3.0-beta.1](https://github.com/postlane/cli/compare/v0.2.0...v0.3.0-beta.1) (2026-06-24)
+
+
+### Features
+
+* **docs:** add beta channel section to README with opt-in, revert, and issue reporting (23.5.7) ([62b64fa](https://github.com/postlane/cli/commit/62b64fa5451ec8c298ea41763de20a5949c94ba8))
+
 # [0.2.0](https://github.com/postlane/cli/compare/v0.1.5...v0.2.0) (2026-06-24)
 
 
