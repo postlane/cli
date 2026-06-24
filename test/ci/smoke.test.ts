@@ -49,15 +49,29 @@ describe.skipIf(!shouldRunSmoke)('CLI smoke tests', () => {
 
     // Verify mock server responds to /github-project-config before running CLI tests.
     // This isolates mock-server failures from CLI subprocess failures.
+    const portFileContent = readFileSync(PORT_FILE, 'utf-8').trim();
+    console.log(`[smoke] start() returned port: ${port}, PORT_FILE contains: ${portFileContent}`);
     const ctrl = new AbortController();
     const tid = setTimeout(() => ctrl.abort(), 3000);
     try {
       const r = await fetch(`http://127.0.0.1:${port}/github-project-config?org_login=test`, { signal: ctrl.signal });
-      console.log(`[smoke] mock /github-project-config status: ${r.status}`);
+      console.log(`[smoke] mock /github-project-config via start() port: ${r.status}`);
     } catch (e) {
       console.error(`[smoke] mock /github-project-config FAILED: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       clearTimeout(tid);
+    }
+    // Also verify via the PORT_FILE port (what the CLI actually reads)
+    const portFromFile = parseInt(portFileContent, 10);
+    const ctrl2 = new AbortController();
+    const tid2 = setTimeout(() => ctrl2.abort(), 3000);
+    try {
+      const r2 = await fetch(`http://127.0.0.1:${portFromFile}/github-project-config?org_login=test`, { signal: ctrl2.signal });
+      console.log(`[smoke] mock /github-project-config via PORT_FILE port: ${r2.status}`);
+    } catch (e) {
+      console.error(`[smoke] mock /github-project-config via PORT_FILE FAILED: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      clearTimeout(tid2);
     }
   });
 
