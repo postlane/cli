@@ -1,6 +1,6 @@
 {
   "name": "@postlane/cli",
-  "version": "0.1.5",
+  "version": "0.2.0-beta.1",
   "description": "Postlane CLI",
   "repository": {
     "type": "git",
