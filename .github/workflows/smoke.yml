@@ -1,0 +1,58 @@
+name: Smoke
+
+on:
+  push:
+    branches:
+      - beta
+  pull_request:
+    branches:
+      - beta
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+
+      - name: Checkout prompts
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          repository: postlane/prompts
+          token: ${{ secrets.PROMPTS_PAT }}
+          path: prompts-checkout
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          PROMPTS_DIR: ${{ github.workspace }}/prompts-checkout
+
+      - name: Run smoke tests
+        run: npx vitest run test/ci/smoke.test.ts --reporter=verbose --reporter=junit --outputFile=smoke-results.xml
+        env:
+          CI_SMOKE_TESTS: 'true'
+          CI_GITHUB_SESSION_TOKEN: ${{ secrets.CI_GITHUB_SESSION_TOKEN }}
+          CI_GITLAB_SESSION_TOKEN: ${{ secrets.CI_GITLAB_SESSION_TOKEN }}
+          PROMPTS_DIR: ${{ github.workspace }}/prompts-checkout
+
+      - name: Upload smoke test results
+        # actions/upload-artifact@v4.6.2 — pinned to commit SHA
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: smoke-results
+          path: smoke-results.xml
