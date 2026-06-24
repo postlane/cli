@@ -52,6 +52,9 @@ jobs:
       - name: Release
         run: npx semantic-release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # RELEASE_PAT is a fine-grained PAT from a repo admin (hugoelliott).
+          # GITHUB_TOKEN cannot push back to protected branches; the PAT is in
+          # the "Repository admin" bypass list on both main and beta rulesets.
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           PROMPTS_DIR: ${{ github.workspace }}/prompts-checkout
