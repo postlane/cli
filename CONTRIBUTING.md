@@ -73,6 +73,12 @@ npm dist-tag add @postlane/cli@{previous-version} latest
 npm info @postlane/cli dist-tags   # confirm rollback
 ```
 
+### Bad staging Kamal deploy
+
+```bash
+kamal rollback --config config/deploy.staging.yml
+```
+
 ## Staging escalation path
 
 If a regression is found on staging:
