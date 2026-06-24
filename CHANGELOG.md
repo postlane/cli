@@ -1,3 +1,10 @@
+# [0.2.0-beta.2](https://github.com/postlane/cli/compare/v0.2.0-beta.1...v0.2.0-beta.2) (2026-06-24)
+
+
+### Bug Fixes
+
+* **test:** remove hardcoded version assertion that breaks on semantic-release bump ([ba39a9a](https://github.com/postlane/cli/commit/ba39a9a804381e864e0f031b0c57633fd24561d1))
+
 # [0.2.0-beta.1](https://github.com/postlane/cli/compare/v0.1.5...v0.2.0-beta.1) (2026-06-24)
 
 
