@@ -1,0 +1,15 @@
+{
+  "_comment": "semantic-release owns the version field in package.json. Do not bump the version manually. See CONTRIBUTING.md for commit prefix conventions and the beta promotion flow.",
+  "branches": [
+    "main",
+    { "name": "beta", "prerelease": true }
+  ],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    ["@semantic-release/changelog", { "changelogFile": "CHANGELOG.md" }],
+    ["@semantic-release/npm", { "npmPublish": true }],
+    ["@semantic-release/git", { "assets": ["package.json", "CHANGELOG.md"] }],
+    "@semantic-release/github"
+  ]
+}
