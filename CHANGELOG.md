@@ -1,3 +1,10 @@
+# [0.2.0-beta.4](https://github.com/postlane/cli/compare/v0.2.0-beta.3...v0.2.0-beta.4) (2026-06-24)
+
+
+### Features
+
+* **docs:** add CONTRIBUTING.md with branching model, commit conventions, and token rotation ([8f4bf71](https://github.com/postlane/cli/commit/8f4bf7142659e60fbcdcaa70a0f1913b3d529bee))
+
 # [0.2.0-beta.3](https://github.com/postlane/cli/compare/v0.2.0-beta.2...v0.2.0-beta.3) (2026-06-24)
 
 
