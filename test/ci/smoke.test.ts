@@ -10,7 +10,7 @@
 //   23.3.3 — CI_GITHUB_SESSION_TOKEN + CI_GITLAB_SESSION_TOKEN repo secrets
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { spawnSync } from 'child_process';
+import { spawnSync, spawn } from 'child_process';
 import {
   existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, unlinkSync, rmSync,
 } from 'fs';
@@ -32,6 +32,23 @@ const TOKEN_FILE = join(POSTLANE_DIR, 'session.token');
 // Once 23.3.1–23.3.3 are complete and CI secrets are added, this guard resolves to false and tests run.
 const shouldRunSmoke = !!(process.env.CI_SMOKE_TESTS && process.env.CI_GITHUB_SESSION_TOKEN);
 
+// Runs the CLI in a child process without blocking the event loop.
+// spawnSync blocks the parent's event loop, preventing the mock HTTP server from
+// processing incoming connections from the CLI subprocess. Using spawn keeps the
+// event loop alive so the mock server can respond while the CLI subprocess runs.
+function runCLI(args: string[], cwd: string): Promise<{ status: number; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn('node', [CLI, ...args], { cwd });
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf-8'); });
+    child.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf-8'); });
+    child.on('close', (code: number | null) => {
+      resolve({ status: code ?? 1, stdout, stderr });
+    });
+  });
+}
+
 describe.skipIf(!shouldRunSmoke)('CLI smoke tests', () => {
   let savedPort: Buffer | null = null;
   let savedToken: Buffer | null = null;
@@ -44,35 +61,8 @@ describe.skipIf(!shouldRunSmoke)('CLI smoke tests', () => {
     savedToken = existsSync(TOKEN_FILE) ? readFileSync(TOKEN_FILE) : null;
 
     mkdirSync(POSTLANE_DIR, { recursive: true });
-    const { port } = await start(); // writes port to ~/.postlane/port
+    await start(); // writes port to ~/.postlane/port
     writeFileSync(TOKEN_FILE, githubToken, { mode: 0o600 });
-
-    // Verify mock server responds to /github-project-config before running CLI tests.
-    // This isolates mock-server failures from CLI subprocess failures.
-    const portFileContent = readFileSync(PORT_FILE, 'utf-8').trim();
-    console.log(`[smoke] start() returned port: ${port}, PORT_FILE contains: ${portFileContent}`);
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 3000);
-    try {
-      const r = await fetch(`http://127.0.0.1:${port}/github-project-config?org_login=test`, { signal: ctrl.signal });
-      console.log(`[smoke] mock /github-project-config via start() port: ${r.status}`);
-    } catch (e) {
-      console.error(`[smoke] mock /github-project-config FAILED: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      clearTimeout(tid);
-    }
-    // Also verify via the PORT_FILE port (what the CLI actually reads)
-    const portFromFile = parseInt(portFileContent, 10);
-    const ctrl2 = new AbortController();
-    const tid2 = setTimeout(() => ctrl2.abort(), 3000);
-    try {
-      const r2 = await fetch(`http://127.0.0.1:${portFromFile}/github-project-config?org_login=test`, { signal: ctrl2.signal });
-      console.log(`[smoke] mock /github-project-config via PORT_FILE port: ${r2.status}`);
-    } catch (e) {
-      console.error(`[smoke] mock /github-project-config via PORT_FILE FAILED: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      clearTimeout(tid2);
-    }
   });
 
   afterAll(async () => {
@@ -95,7 +85,7 @@ describe.skipIf(!shouldRunSmoke)('CLI smoke tests', () => {
   // 23.3.6 — smoke_init_github
   // ──────────────────────────────────────────────────────────────────────────────
 
-  it('smoke_init_github: writes config.json with project_id from mock server and exits 0', () => {
+  it('smoke_init_github: writes config.json with project_id from mock server and exits 0', async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), 'smoke-github-'));
     try {
       spawnSync('git', ['init'], { cwd: tmpDir });
@@ -104,7 +94,7 @@ describe.skipIf(!shouldRunSmoke)('CLI smoke tests', () => {
       spawnSync('git', ['remote', 'add', 'origin',
         'https://github.com/postlane-ci-test/smoke-test-repo.git'], { cwd: tmpDir });
 
-      const result = spawnSync('node', [CLI, 'init'], { cwd: tmpDir, encoding: 'utf-8' });
+      const result = await runCLI(['init'], tmpDir);
 
       if (result.status !== 0) {
         console.error(`[smoke_init_github] exit ${result.status}`);
@@ -274,7 +264,7 @@ describe.skipIf(!shouldRunSmoke)('CLI smoke tests', () => {
       spawnSync('git', ['config', 'user.name', 'CI'], { cwd: tmpDir });
       spawnSync('git', ['remote', 'add', 'origin',
         'https://github.com/postlane-ci-test/smoke-test-repo.git'], { cwd: tmpDir });
-      spawnSync('node', [CLI, 'init'], { cwd: tmpDir, encoding: 'utf-8' });
+      await runCLI(['init'], tmpDir);
 
       // When the app is running, handleRunningState sends to the app (does not write repos.json locally).
       // Write repos.json manually so checkRepoRegistered passes.
@@ -289,7 +279,7 @@ describe.skipIf(!shouldRunSmoke)('CLI smoke tests', () => {
         }],
       }, null, 2), { mode: 0o600 });
 
-      const result = spawnSync('node', [CLI, 'doctor'], { cwd: tmpDir, encoding: 'utf-8' });
+      const result = await runCLI(['doctor'], tmpDir);
 
       expect(result.status).toBe(0);
       const stdout = result.stdout ?? '';
