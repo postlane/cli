@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir, homedir } from 'os';
-import { runDoctor, getExitCode } from '../src/commands/doctor.js';
+import { runDoctor, getExitCode, formatDoctorJson } from '../src/commands/doctor.js';
 import { isValidPort } from '../src/app/health.js';
 import { SKILL_FILE_NAMES } from '../src/app/skill_manifest.js';
 
@@ -421,5 +421,40 @@ describe('postlane doctor', () => {
       vi.doUnmock('child_process');
       vi.resetModules();
     });
+  });
+});
+
+describe('formatDoctorJson', () => {
+  it('returns a valid JSON string', () => {
+    const checks = [{ name: 'foo', description: 'Foo check', passed: true }];
+    const result = formatDoctorJson(checks);
+    expect(() => JSON.parse(result)).not.toThrow();
+  });
+
+  it('JSON includes all_passed: true when all checks pass', () => {
+    const checks = [{ name: 'foo', description: 'Foo check', passed: true }];
+    const parsed = JSON.parse(formatDoctorJson(checks));
+    expect(parsed.all_passed).toBe(true);
+  });
+
+  it('JSON includes all_passed: false when any check fails', () => {
+    const checks = [
+      { name: 'foo', description: 'Foo check', passed: true },
+      { name: 'bar', description: 'Bar check', passed: false },
+    ];
+    const parsed = JSON.parse(formatDoctorJson(checks));
+    expect(parsed.all_passed).toBe(false);
+  });
+
+  it('JSON checks array contains name, description, passed for each check', () => {
+    const checks = [{ name: 'foo', description: 'Foo check', passed: true }];
+    const parsed = JSON.parse(formatDoctorJson(checks));
+    expect(parsed.checks[0]).toMatchObject({ name: 'foo', description: 'Foo check', passed: true });
+  });
+
+  it('JSON includes fix when check has a fix message', () => {
+    const checks = [{ name: 'foo', description: 'Foo check', passed: false, fix: 'run postlane init' }];
+    const parsed = JSON.parse(formatDoctorJson(checks));
+    expect(parsed.checks[0].fix).toBe('run postlane init');
   });
 });
