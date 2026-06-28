@@ -1,3 +1,10 @@
+# [0.5.0-beta.2](https://github.com/postlane/cli/compare/v0.5.0-beta.1...v0.5.0-beta.2) (2026-06-28)
+
+
+### Bug Fixes
+
+* **ci:** address v1.5 review findings in CLI workflows and tests ([#44](https://github.com/postlane/cli/issues/44)) ([6613d7f](https://github.com/postlane/cli/commit/6613d7f6e3b57c883cbe87dc408f7e903062f73e))
+
 # [0.5.0-beta.1](https://github.com/postlane/cli/compare/v0.4.0...v0.5.0-beta.1) (2026-06-28)
 
 
