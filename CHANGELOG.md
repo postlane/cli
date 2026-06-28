@@ -1,3 +1,10 @@
+# [0.5.0-beta.1](https://github.com/postlane/cli/compare/v0.4.0...v0.5.0-beta.1) (2026-06-28)
+
+
+### Features
+
+* **doctor:** add --json flag for machine-readable health check output ([#43](https://github.com/postlane/cli/issues/43)) ([0273675](https://github.com/postlane/cli/commit/027367556c164034b0efaf911ff8761c51252101))
+
 # [0.4.0](https://github.com/postlane/cli/compare/v0.3.0...v0.4.0) (2026-06-28)
 
 
