@@ -5,7 +5,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 
 const PROJECT_CONFIG = {
-  project_id: 'ci-test-project-id',
+  project_id: null,
   project_name: 'CI Test Project',
 };
 
