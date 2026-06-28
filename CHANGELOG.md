@@ -1,3 +1,10 @@
+# [0.4.0](https://github.com/postlane/cli/compare/v0.3.0...v0.4.0) (2026-06-28)
+
+
+### Features
+
+* **v0.3.1:** promote beta to main ([#37](https://github.com/postlane/cli/issues/37)) ([c1fb70d](https://github.com/postlane/cli/commit/c1fb70d447dd1ac97b62718ff24de4766b244567)), closes [#39](https://github.com/postlane/cli/issues/39)
+
 ## [0.3.1-beta.1](https://github.com/postlane/cli/compare/v0.3.0...v0.3.1-beta.1) (2026-06-28)
 
 
