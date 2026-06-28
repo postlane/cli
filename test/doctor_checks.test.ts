@@ -99,6 +99,12 @@ describe('checkSkillFiles', () => {
     const result = checkSkillFiles(dir);
     expect(result.fix).toContain('draft-x.md');
   });
+
+  it('fix message cites sync-skills, not the removed --update-skills flag', () => {
+    const result = checkSkillFiles(dir);
+    expect(result.fix).toContain('sync-skills');
+    expect(result.fix).not.toContain('--update-skills');
+  });
 });
 
 describe('checkGitIgnore', () => {

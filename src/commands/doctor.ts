@@ -111,7 +111,7 @@ export function checkSkillFiles(targetDir: string): Check {
     passed,
     fix: passed
       ? undefined
-      : `Missing skill files: ${missing.join(', ')}. Run \`npx postlane init --update-skills\` to refresh. (Note: --update-skills is coming in v1.1)`,
+      : `Missing skill files: ${missing.join(', ')}. Run \`npx postlane sync-skills\` to refresh.`,
   };
 }
 

@@ -8,6 +8,10 @@
 //   23.3.1 — postlane-ci-test GitHub org with Postlane App + smoke-test-repo
 //   23.3.2 — postlane-ci-test GitLab group with smoke-test-repo + access token
 //   23.3.3 — CI_GITHUB_SESSION_TOKEN + CI_GITLAB_SESSION_TOKEN repo secrets
+//
+// 23.6.3 smoke gate verification: setting project_id: null in mock-desktop-server.ts causes
+// smoke_init_github to fail; the beta branch ruleset blocks that PR from merging to beta,
+// and blocks any beta→main PR until smoke passes again on beta.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync, spawn } from 'child_process';
