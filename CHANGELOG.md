@@ -1,3 +1,20 @@
+# [0.3.0-beta.2](https://github.com/postlane/cli/compare/v0.3.0-beta.1...v0.3.0-beta.2) (2026-06-24)
+
+
+### Bug Fixes
+
+* **ci:** add mock server diagnostics and stderr capture to smoke_init_github ([f4af2f6](https://github.com/postlane/cli/commit/f4af2f6d121fb2968d8d19f969a0fc6b3789ada6))
+* **ci:** add req.resume() to mock server GET handlers and 5s timeout to fetchGitHubProjectConfig ([0d6eada](https://github.com/postlane/cli/commit/0d6eada96a089e226b68d1fe9f68a1507dad3942))
+* **ci:** diagnose port mismatch — log start() port vs PORT_FILE content ([81cec09](https://github.com/postlane/cli/commit/81cec093c1373d5a76b62f3eaba5de9ad11bd513))
+* **ci:** use async spawn in smoke tests so mock server stays live ([8013b42](https://github.com/postlane/cli/commit/8013b42c3837403ec43051f164d489545b2db8f3))
+
+# [0.3.0-beta.1](https://github.com/postlane/cli/compare/v0.2.0...v0.3.0-beta.1) (2026-06-24)
+
+
+### Features
+
+* **docs:** add beta channel section to README with opt-in, revert, and issue reporting (23.5.7) ([62b64fa](https://github.com/postlane/cli/commit/62b64fa5451ec8c298ea41763de20a5949c94ba8))
+
 # [0.2.0](https://github.com/postlane/cli/compare/v0.1.5...v0.2.0) (2026-06-24)
 
 
