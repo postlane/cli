@@ -1,3 +1,10 @@
+## [0.3.1-beta.1](https://github.com/postlane/cli/compare/v0.3.0...v0.3.1-beta.1) (2026-06-28)
+
+
+### Bug Fixes
+
+* **doctor:** correct skill-files fix command from --update-skills to sync-skills ([9d1607f](https://github.com/postlane/cli/commit/9d1607f5d986ca34a79e720e04cb9ee98905900d))
+
 # [0.3.0](https://github.com/postlane/cli/compare/v0.2.0...v0.3.0) (2026-06-28)
 
 
