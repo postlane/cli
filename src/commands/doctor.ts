@@ -180,10 +180,33 @@ export function getExitCode(checks: Check[]): number {
   return checks.every(c => c.passed || c.status === 'skipped') ? 0 : 1;
 }
 
-export async function doctorCommand() {
-  console.log(chalk.blue('Running Postlane health checks...\n'));
+export function formatDoctorJson(checks: Check[]): string {
+  const allPassed = checks.every((c) => c.status === 'skipped' || c.passed);
+  return JSON.stringify({
+    all_passed: allPassed,
+    checks: checks.map((c) => {
+      const entry: Record<string, unknown> = {
+        name: c.name,
+        description: c.description,
+        passed: c.passed,
+      };
+      if (c.status) entry.status = c.status;
+      if (c.fix) entry.fix = c.fix;
+      return entry;
+    }),
+  }, null, 2);
+}
 
+export async function doctorCommand(options: { json?: boolean } = {}) {
   const checks = await runDoctor();
+
+  if (options.json) {
+    console.log(formatDoctorJson(checks));
+    process.exit(getExitCode(checks));
+    return;
+  }
+
+  console.log(chalk.blue('Running Postlane health checks...\n'));
 
   for (const check of checks) {
     if (check.status === 'skipped') {

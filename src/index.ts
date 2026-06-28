@@ -33,6 +33,7 @@ program
 program
   .command('doctor')
   .description('Run health checks for Postlane setup')
+  .option('--json', 'Output results as JSON')
   .action(doctorCommand);
 
 program
