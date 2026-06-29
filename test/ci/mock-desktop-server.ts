@@ -29,7 +29,7 @@ function isAuthorized(req: http.IncomingMessage): boolean {
 /// random session token to {homeDir}/.postlane/session.token (mode 0o600) so
 /// the CLI can discover the server and authenticate exactly as it does with the
 /// real desktop app. Pass a tmp dir in unit tests to avoid touching ~/.postlane/.
-export function start(homeDir?: string): Promise<{ port: number }> {
+export function start(homeDir?: string, token?: string): Promise<{ port: number }> {
   const home = homeDir ?? homedir();
   return new Promise((resolve, reject) => {
     const s = http.createServer((req, res) => {
@@ -67,9 +67,9 @@ export function start(homeDir?: string): Promise<{ port: number }> {
       const postlaneDir = join(home, '.postlane');
       mkdirSync(postlaneDir, { recursive: true });
       writeFileSync(join(postlaneDir, 'port'), String(port), { mode: 0o600 });
-      const token = randomBytes(32).toString('hex');
-      writeFileSync(join(postlaneDir, 'session.token'), token, { mode: 0o600 });
-      activeToken = token;
+      const tok = token ?? randomBytes(32).toString('hex');
+      writeFileSync(join(postlaneDir, 'session.token'), tok, { mode: 0o600 });
+      activeToken = tok;
       resolve({ port });
     });
     s.on('error', reject);

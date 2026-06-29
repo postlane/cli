@@ -65,8 +65,7 @@ describe.skipIf(!shouldRunSmoke)('CLI smoke tests', () => {
     savedToken = existsSync(TOKEN_FILE) ? readFileSync(TOKEN_FILE) : null;
 
     mkdirSync(POSTLANE_DIR, { recursive: true });
-    await start(); // writes port to ~/.postlane/port
-    writeFileSync(TOKEN_FILE, githubToken, { mode: 0o600 });
+    await start(undefined, githubToken); // writes port + githubToken to ~/.postlane/{port,session.token}
   });
 
   afterAll(async () => {

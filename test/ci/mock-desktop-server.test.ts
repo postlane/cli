@@ -77,6 +77,27 @@ describe('mock-desktop-server', () => {
     expect(data).toEqual({ success: true, name: 'smoke-test-repo' });
   });
 
+  it('start() with an explicit token writes that token to session.token and accepts it on /register', async () => {
+    await stop();
+    const explicit = 'explicit-known-token-for-test';
+    const tmp2 = mkdtempSync(join(tmpdir(), 'postlane-mock-explicit-'));
+    try {
+      const { port: p2 } = await start(tmp2, explicit);
+      const stored = readFileSync(join(tmp2, '.postlane', 'session.token'), 'utf-8').trim();
+      expect(stored).toBe(explicit);
+      const res = await fetch(`http://127.0.0.1:${p2}/register`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${explicit}` },
+      });
+      expect(res.status).toBe(200);
+    } finally {
+      await stop();
+      await rm(tmp2, { recursive: true, force: true });
+      // Restart the original server for afterEach cleanup
+      ({ port } = await start(tmpHome));
+    }
+  });
+
   it('POST /register with wrong Bearer token returns 401', async () => {
     const res = await fetch(`http://127.0.0.1:${port}/register`, {
       method: 'POST',
