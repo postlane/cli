@@ -151,8 +151,8 @@ describe.skipIf(!shouldRunSmoke)('CLI smoke tests', () => {
   // ──────────────────────────────────────────────────────────────────────────────
 
   it('smoke_init_no_session: exits 1 with sign-in instruction when session token is absent', () => {
+    if (!existsSync(TOKEN_FILE)) throw new Error(`Expected session token at ${TOKEN_FILE} — beforeAll may not have run`);
     const tmpDir = mkdtempSync(join(tmpdir(), 'smoke-no-session-'));
-    if (!existsSync(TOKEN_FILE)) throw new Error(`Expected session token at ${TOKEN_FILE} — beforeAll may not have run`)
     const savedTokenContent = readFileSync(TOKEN_FILE);
     unlinkSync(TOKEN_FILE);
     try {

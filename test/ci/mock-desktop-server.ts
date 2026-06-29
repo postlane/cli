@@ -30,6 +30,9 @@ function isAuthorized(req: http.IncomingMessage): boolean {
 /// the CLI can discover the server and authenticate exactly as it does with the
 /// real desktop app. Pass a tmp dir in unit tests to avoid touching ~/.postlane/.
 export function start(homeDir?: string, token?: string): Promise<{ port: number }> {
+  if (server !== null) {
+    return Promise.reject(new Error('already running — call stop() before start()'));
+  }
   const home = homeDir ?? homedir();
   return new Promise((resolve, reject) => {
     const s = http.createServer((req, res) => {
@@ -56,8 +59,10 @@ export function start(homeDir?: string, token?: string): Promise<{ port: number 
         res.end();
       }
     });
-    server = s;
     s.listen(0, '127.0.0.1', () => {
+      // Assign only after listen succeeds so a listen failure doesn't leave
+      // a broken server reference that causes stop() to reject.
+      server = s;
       const address = s.address();
       if (address === null || typeof address === 'string') {
         reject(new Error('Unexpected server address type after listen'));
@@ -80,12 +85,15 @@ export function start(homeDir?: string, token?: string): Promise<{ port: number 
 /// Safe to call when already stopped.
 export function stop(): Promise<void> {
   return new Promise((resolve, reject) => {
-    activeToken = null;
     if (!server) {
+      activeToken = null;
       resolve();
       return;
     }
     server.close((err) => {
+      // Clear token only after close so in-flight authenticated requests
+      // are not spuriously rejected with 401 during shutdown.
+      activeToken = null;
       server = null;
       if (err) reject(err);
       else resolve();
