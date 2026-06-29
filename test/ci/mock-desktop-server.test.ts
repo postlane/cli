@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
+import http from 'http';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { start, stop } from './mock-desktop-server.js';
 import { readFileSync, statSync, mkdtempSync } from 'fs';
@@ -109,5 +110,32 @@ describe('mock-desktop-server', () => {
   it('stop() closes the server so subsequent requests fail', async () => {
     await stop();
     await expect(fetch(`http://127.0.0.1:${port}/health`)).rejects.toThrow();
+  });
+
+  // ── F12: double-start guard ──────────────────────────────────────────────
+  it('start() called while already running rejects with "already running" error', async () => {
+    const tmp2 = mkdtempSync(join(tmpdir(), 'postlane-mock-double-'));
+    try {
+      await expect(start(tmp2)).rejects.toThrow('already running');
+    } finally {
+      await rm(tmp2, { recursive: true, force: true });
+    }
+  });
+
+  // ── F8: array Authorization header normalisation ─────────────────────────
+  it('POST /register with array Authorization header still returns 200', async () => {
+    const token = readFileSync(join(tmpHome, '.postlane', 'session.token'), 'utf-8').trim();
+    const statusCode = await new Promise<number>((resolve, reject) => {
+      const req = http.request(
+        { hostname: '127.0.0.1', port, path: '/register', method: 'POST' },
+        (res) => resolve(res.statusCode ?? 0),
+      );
+      // Passing an array forces Node.js to send two Authorization header lines;
+      // the server receives them as string | string[] — both must be handled.
+      req.setHeader('Authorization', [`Bearer ${token}`, `Bearer ${token}`]);
+      req.on('error', reject);
+      req.end();
+    });
+    expect(statusCode).toBe(200);
   });
 });
