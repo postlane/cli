@@ -400,7 +400,7 @@ describe('postlane register', () => {
 
   describe('writeSecureJson — file permissions', () => {
     it('writes file with mode 0600', async () => {
-      const { writeSecureJson } = await import('../src/commands/register.js');
+      const { writeSecureJson } = await import('../src/fs/secure-write.js');
       const testFile = join(tmpdir(), `postlane-perm-test-${Date.now()}.json`);
       writeSecureJson(testFile, { version: 1, repos: [] });
       const stat = statSync(testFile);

@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-import {
-  existsSync, readFileSync, writeFileSync, renameSync,
-} from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import type { Repo } from '../app/repos.js';
 import { isRepo } from '../app/repos.js';
 import type { GlobalReposV2, WorkspaceEntry } from '../app/workspace_repos.js';
 import { isGlobalReposV2 } from '../app/workspace_repos.js';
+import { writeSecureJson } from '../fs/secure-write.js';
 
 // ── Read/write global ~/.postlane/repos.json ──────────────────────────────────
 
@@ -41,9 +40,7 @@ function isLegacyV1Config(val: unknown): val is { version: number; repos: Repo[]
 }
 
 export function writeGlobalReposV2Atomic(reposPath: string, config: GlobalReposV2): void {
-  const tmpPath = reposPath + '.tmp';
-  writeFileSync(tmpPath, JSON.stringify(config, null, 2), { encoding: 'utf-8', mode: 0o600 });
-  renameSync(tmpPath, reposPath);
+  writeSecureJson(reposPath, config);
 }
 
 // ── Idempotent workspace entry registration ───────────────────────────────────
