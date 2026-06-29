@@ -1,3 +1,10 @@
+# [0.5.0-beta.3](https://github.com/postlane/cli/compare/v0.5.0-beta.2...v0.5.0-beta.3) (2026-06-29)
+
+
+### Bug Fixes
+
+* **mock-server:** guard against double-start, race conditions in start/stop ([#46](https://github.com/postlane/cli/issues/46)) ([e1c292e](https://github.com/postlane/cli/commit/e1c292eac45fcfd7e77732227b6c057087e17900))
+
 # [0.5.0-beta.2](https://github.com/postlane/cli/compare/v0.5.0-beta.1...v0.5.0-beta.2) (2026-06-28)
 
 
