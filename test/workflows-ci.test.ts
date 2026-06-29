@@ -47,6 +47,25 @@ describe('cli workflow files — job timeouts', () => {
   });
 });
 
+describe('cli workflow files — license-checker correctness', () => {
+  it('ci.yml license-checker uses --production and has no || echo fallback', () => {
+    const content = readWorkflow('ci.yml');
+    const checkerLine = content.split('\n').find((l) => l.includes('license-checker') && l.includes('--onlyAllow'));
+    expect(checkerLine, 'license-checker --onlyAllow line not found in ci.yml').toBeDefined();
+    expect(checkerLine, 'license-checker must use --production to skip dev-only deps').toContain('--production');
+    expect(checkerLine, 'license-checker has || echo fallback — remove it so GPL detections fail CI').not.toContain('|| echo');
+  });
+
+  it('ci.yml license-checker allows MPL-2.0, MIT-0, LGPL-3.0-or-later', () => {
+    const content = readWorkflow('ci.yml');
+    const checkerLine = content.split('\n').find((l) => l.includes('license-checker') && l.includes('--onlyAllow'));
+    expect(checkerLine, 'license-checker --onlyAllow line not found in ci.yml').toBeDefined();
+    expect(checkerLine, 'MPL-2.0 must be allowed (lightningcss via @tailwindcss/postcss)').toContain('MPL-2.0');
+    expect(checkerLine, 'MIT-0 must be allowed (@csstools packages)').toContain('MIT-0');
+    expect(checkerLine, 'LGPL-3.0-or-later must be allowed (next/sharp/libvips chain)').toContain('LGPL-3.0-or-later');
+  });
+});
+
 describe('cli workflow files — no floating version tags', () => {
   it('no workflow uses a floating version tag (@v4, @stable, @main)', () => {
     for (const name of workflowNames()) {
