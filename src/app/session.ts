@@ -14,6 +14,7 @@ export function readPortFile(dir: string): number | null {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw err;
   }
+  if (!/^\d+$/.test(portStr)) return null;
   const port = Number(portStr);
   if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
   return port;

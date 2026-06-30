@@ -40,6 +40,13 @@ describe('.github/workflows/token-rotation-reminder.yml', () => {
     expect(content).toContain('gh issue create');
   });
 
+  it('label creation does not use 2>/dev/null || true (swallows all errors)', () => {
+    const content = readFileSync(workflowPath, 'utf-8');
+    expect(content, 'must not suppress all gh label errors with 2>/dev/null || true').not.toMatch(
+      /gh label create[\s\S]*?2>\/dev\/null \|\| true/
+    );
+  });
+
   it('creates labels with separate gh label create steps before creating the issue', () => {
     // gh issue create --label "ops,token-rotation" creates a single label with a literal comma
     // (on some gh CLI versions) or fails with 422 if neither label exists in the repo.

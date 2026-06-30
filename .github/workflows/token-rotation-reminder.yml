@@ -38,15 +38,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Create labels idempotently — 2>/dev/null suppresses "already exists" errors.
-          gh label create "ops" \
-            --color "#0075ca" \
-            --description "Operational and infrastructure tasks" \
-            2>/dev/null || true
-          gh label create "token-rotation" \
-            --color "#e4e669" \
-            --description "Token rotation reminder" \
-            2>/dev/null || true
+          # Create each label only if absent -- surfaces permission errors rather than
+          # swallowing them with 2>/dev/null || true.
+          gh label list --json name --jq '.[].name' | grep -qxF "ops" || \
+            gh label create "ops" \
+              --color "#0075ca" \
+              --description "Operational and infrastructure tasks"
+          gh label list --json name --jq '.[].name' | grep -qxF "token-rotation" || \
+            gh label create "token-rotation" \
+              --color "#e4e669" \
+              --description "Token rotation reminder"
 
       - name: Open reminder issue if tokens expire within 14 days
         env:

@@ -56,14 +56,23 @@ describe('readPortFile', () => {
     expect(readPortFile(dir)).toBe(65535);
   });
 
-  it('returns null without throwing when port file is deleted after existsSync check (TOCTOU)', async () => {
+  it('returns null for scientific notation that resolves to a valid integer port', () => {
+    writeFileSync(join(dir, 'port'), '1e2');
+    expect(readPortFile(dir)).toBeNull();
+  });
+
+  it('returns null for scientific notation 6.5535e4 (65535)', () => {
+    writeFileSync(join(dir, 'port'), '6.5535e4');
+    expect(readPortFile(dir)).toBeNull();
+  });
+
+  it('returns null without throwing when readFileSync throws ENOENT (TOCTOU race)', async () => {
     vi.resetModules();
 
     vi.doMock('fs', async () => {
       const actual = await vi.importActual<typeof import('fs')>('fs');
       return {
         ...actual,
-        existsSync: () => true,
         readFileSync: () => {
           const err = Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' });
           throw err;
