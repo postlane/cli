@@ -65,8 +65,7 @@ describe.skipIf(!shouldRunSmoke)('CLI smoke tests', () => {
     savedToken = existsSync(TOKEN_FILE) ? readFileSync(TOKEN_FILE) : null;
 
     mkdirSync(POSTLANE_DIR, { recursive: true });
-    await start(); // writes port to ~/.postlane/port
-    writeFileSync(TOKEN_FILE, githubToken, { mode: 0o600 });
+    await start(undefined, githubToken); // writes port + githubToken to ~/.postlane/{port,session.token}
   });
 
   afterAll(async () => {
@@ -123,39 +122,36 @@ describe.skipIf(!shouldRunSmoke)('CLI smoke tests', () => {
   // 23.3.7 — smoke_init_gitlab
   // ──────────────────────────────────────────────────────────────────────────────
 
-  it('smoke_init_gitlab: writes config.json for GitLab repo with --defaults and exits 0', () => {
-    const gitlabToken = process.env.CI_GITLAB_SESSION_TOKEN;
-    if (!gitlabToken) {
-      console.warn('CI_GITLAB_SESSION_TOKEN not set — skipping smoke_init_gitlab');
-      return;
-    }
+  // H2/H3: async + it.skipIf so the mock server's event loop is not blocked and
+  // the test is correctly reported as SKIPPED (not PASSED) when the token is absent.
+  it.skipIf(!process.env.CI_GITLAB_SESSION_TOKEN)(
+    'smoke_init_gitlab: writes config.json for GitLab repo with --defaults and exits 0',
+    async () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), 'smoke-gitlab-'));
+      try {
+        spawnSync('git', ['init'], { cwd: tmpDir });
+        spawnSync('git', ['config', 'user.email', 'ci@postlane.dev'], { cwd: tmpDir });
+        spawnSync('git', ['config', 'user.name', 'CI'], { cwd: tmpDir });
+        spawnSync('git', ['remote', 'add', 'origin',
+          'https://gitlab.com/postlane-ci-test/smoke-test-repo.git'], { cwd: tmpDir });
 
-    const tmpDir = mkdtempSync(join(tmpdir(), 'smoke-gitlab-'));
-    try {
-      spawnSync('git', ['init'], { cwd: tmpDir });
-      spawnSync('git', ['config', 'user.email', 'ci@postlane.dev'], { cwd: tmpDir });
-      spawnSync('git', ['config', 'user.name', 'CI'], { cwd: tmpDir });
-      spawnSync('git', ['remote', 'add', 'origin',
-        'https://gitlab.com/postlane-ci-test/smoke-test-repo.git'], { cwd: tmpDir });
+        const result = await runCLI(['init', '--defaults'], tmpDir);
 
-      const result = spawnSync('node', [CLI, 'init', '--defaults'], {
-        cwd: tmpDir,
-        encoding: 'utf-8',
-      });
-
-      expect(result.status).toBe(0);
-      const configPath = join(tmpDir, '.postlane', 'config.json');
-      expect(existsSync(configPath)).toBe(true);
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
-  });
+        expect(result.status).toBe(0);
+        const configPath = join(tmpDir, '.postlane', 'config.json');
+        expect(existsSync(configPath)).toBe(true);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    },
+  );
 
   // ──────────────────────────────────────────────────────────────────────────────
   // 23.3.8 — smoke_init_no_session
   // ──────────────────────────────────────────────────────────────────────────────
 
   it('smoke_init_no_session: exits 1 with sign-in instruction when session token is absent', () => {
+    if (!existsSync(TOKEN_FILE)) throw new Error(`Expected session token at ${TOKEN_FILE} — beforeAll may not have run`);
     const tmpDir = mkdtempSync(join(tmpdir(), 'smoke-no-session-'));
     const savedTokenContent = readFileSync(TOKEN_FILE);
     unlinkSync(TOKEN_FILE);

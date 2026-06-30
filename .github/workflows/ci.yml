@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
   pull_request:
-    branches: [main]
+    branches: [main, beta]
   workflow_dispatch:
 
 permissions:
@@ -12,16 +12,20 @@ permissions:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
 
     steps:
       - name: Checkout code
-        # actions/checkout@v6 — pinned to commit SHA to prevent supply chain attacks
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        # actions/checkout@v4 — pinned to commit SHA to prevent supply chain attacks
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Setup Node.js
-        # actions/setup-node@v6 — pinned to commit SHA
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        # actions/setup-node@v4 — pinned to commit SHA
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '24'
           cache: 'npm'
@@ -45,4 +49,4 @@ jobs:
         run: npm install -g license-checker
 
       - name: Check licenses
-        run: license-checker --onlyAllow "MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;CC0-1.0;Unlicense;Python-2.0;BlueOak-1.0.0;CC-BY-3.0;CC-BY-4.0" --production || echo "License check complete (no production dependencies yet)"
+        run: license-checker --production --onlyAllow "MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;MIT-0;MPL-2.0;LGPL-3.0-or-later;CC0-1.0;Unlicense;Python-2.0;BlueOak-1.0.0;CC-BY-3.0;CC-BY-4.0" --excludePackages "$(node -p "require('./package.json').name + '@' + require('./package.json').version")"

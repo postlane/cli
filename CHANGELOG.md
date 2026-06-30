@@ -1,3 +1,31 @@
+# [0.5.0-beta.3](https://github.com/postlane/cli/compare/v0.5.0-beta.2...v0.5.0-beta.3) (2026-06-29)
+
+
+### Bug Fixes
+
+* **mock-server:** guard against double-start, race conditions in start/stop ([#46](https://github.com/postlane/cli/issues/46)) ([e1c292e](https://github.com/postlane/cli/commit/e1c292eac45fcfd7e77732227b6c057087e17900))
+
+# [0.5.0-beta.2](https://github.com/postlane/cli/compare/v0.5.0-beta.1...v0.5.0-beta.2) (2026-06-28)
+
+
+### Bug Fixes
+
+* **ci:** address v1.5 review findings in CLI workflows and tests ([#44](https://github.com/postlane/cli/issues/44)) ([6613d7f](https://github.com/postlane/cli/commit/6613d7f6e3b57c883cbe87dc408f7e903062f73e))
+
+# [0.5.0-beta.1](https://github.com/postlane/cli/compare/v0.4.0...v0.5.0-beta.1) (2026-06-28)
+
+
+### Features
+
+* **doctor:** add --json flag for machine-readable health check output ([#43](https://github.com/postlane/cli/issues/43)) ([0273675](https://github.com/postlane/cli/commit/027367556c164034b0efaf911ff8761c51252101))
+
+# [0.4.0](https://github.com/postlane/cli/compare/v0.3.0...v0.4.0) (2026-06-28)
+
+
+### Features
+
+* **v0.3.1:** promote beta to main ([#37](https://github.com/postlane/cli/issues/37)) ([c1fb70d](https://github.com/postlane/cli/commit/c1fb70d447dd1ac97b62718ff24de4766b244567)), closes [#39](https://github.com/postlane/cli/issues/39)
+
 ## [0.3.1-beta.1](https://github.com/postlane/cli/compare/v0.3.0...v0.3.1-beta.1) (2026-06-28)
 
 

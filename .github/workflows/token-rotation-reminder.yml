@@ -1,0 +1,77 @@
+name: Token rotation reminder
+
+on:
+  schedule:
+    # Every Monday at 09:00 UTC — gives a week's head-start on the 14-day warning window.
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        # actions/checkout@v4 — pinned to commit SHA to prevent supply chain attacks
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Calculate days until token expiry
+        id: expiry
+        run: |
+          LAST_ROTATION=$(grep -oP '\d{4}-\d{2}-\d{2}' docs/token-rotation.md | head -1)
+          if [ -z "$LAST_ROTATION" ]; then
+            echo "ERROR: No YYYY-MM-DD date found in docs/token-rotation.md" >&2
+            exit 1
+          fi
+          EXPIRY_DATE=$(date -d "$LAST_ROTATION + 90 days" +%Y-%m-%d)
+          DAYS_LEFT=$(( ($(date -d "$EXPIRY_DATE" +%s) - $(date +%s)) / 86400 ))
+          echo "days_left=$DAYS_LEFT" >> "$GITHUB_OUTPUT"
+          echo "expiry_date=$EXPIRY_DATE" >> "$GITHUB_OUTPUT"
+          echo "last_rotation=$LAST_ROTATION" >> "$GITHUB_OUTPUT"
+          echo "Tokens last rotated: $LAST_ROTATION — expire: $EXPIRY_DATE ($DAYS_LEFT days left)"
+
+      - name: Open reminder issue if tokens expire within 14 days
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DAYS_LEFT: ${{ steps.expiry.outputs.days_left }}
+          EXPIRY_DATE: ${{ steps.expiry.outputs.expiry_date }}
+          LAST_ROTATION: ${{ steps.expiry.outputs.last_rotation }}
+        run: |
+          if [ "$DAYS_LEFT" -gt 14 ]; then
+            echo "Tokens expire in $DAYS_LEFT days — no action needed yet"
+            exit 0
+          fi
+
+          # Skip if a reminder issue is already open (avoid duplicates on weekly runs)
+          EXISTING=$(gh issue list \
+            --label "ops,token-rotation" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            echo "Reminder issue #$EXISTING already open — skipping duplicate"
+            exit 0
+          fi
+
+          gh issue create \
+            --title "CI tokens expire in ${DAYS_LEFT} days — rotate by ${EXPIRY_DATE}" \
+            --body "## Action required
+
+The CI smoke test tokens were last rotated on \`${LAST_ROTATION}\` and expire on \`${EXPIRY_DATE}\` (90-day policy).
+
+**Both tokens must be rotated before \`${EXPIRY_DATE}\`:**
+- \`CI_GITHUB_SESSION_TOKEN\` — Postlane session token for \`postlane-ci-test\` GitHub org
+- \`CI_GITLAB_SESSION_TOKEN\` — Postlane session token for \`postlane-ci-test\` GitLab group
+
+**After rotating:**
+1. Update the date in \`docs/token-rotation.md\` and commit to \`main\`
+2. Add the new secrets under *Settings → Secrets and variables → Actions*
+
+See \`CONTRIBUTING.md\` → \"Token rotation procedure\" for full steps.
+
+If tokens have already expired and \`smoke.yml\` is failing with 401/403 errors, check the raw CI log for authentication errors before investigating the code." \
+            --label "ops,token-rotation"

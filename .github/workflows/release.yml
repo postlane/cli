@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - beta
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -43,6 +44,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: npm audit
+        run: npm audit --audit-level=high --omit=dev
+
       - name: Build
         run: npm run build
 
@@ -50,6 +54,7 @@ jobs:
         run: npm test
 
       - name: Release
+        id: release
         run: npx semantic-release
         env:
           # RELEASE_PAT is a fine-grained PAT from a repo admin (hugoelliott).
@@ -58,3 +63,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           PROMPTS_DIR: ${{ github.workspace }}/prompts-checkout
+          # npm reads this env var and passes --provenance to npm publish.
+          # @semantic-release/npm v13 has no native provenance option; env var is the correct mechanism.
+          # Requires id-token: write (set at workflow level) and a granular npm publish token.
+          npm_config_provenance: 'true'
+
+      - name: Post-publish smoke check
+        # The semantic-release back-commit uses [skip ci] — the published artefact is never
+        # tested by the main CI run. This step installs the just-published package from npm
+        # and verifies it boots correctly, catching packaging or build-step regressions.
+        # Only runs on a push to main or beta (not on chore: commits that produce no release).
+        if: github.ref_name == 'main' || github.ref_name == 'beta'
+        run: |
+          DIST_TAG="${{ github.ref_name == 'main' && 'latest' || 'beta' }}"
+          # Allow npm registry a few seconds to propagate the new version
+          sleep 10
+          # Install and invoke — exits non-zero if the package is broken or unpublished
+          npx --yes @postlane/cli@"${DIST_TAG}" --version

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-import { existsSync, readFileSync, writeFileSync, lstatSync } from 'fs';
+import { existsSync, readFileSync, lstatSync } from 'fs';
 import { homedir } from 'os';
 import { join, basename } from 'path';
 import chalk from 'chalk';
@@ -8,10 +8,7 @@ import { randomUUID } from 'crypto';
 import { isValidPort, KNOWN_INSTALL_PATHS, isAppHealthy } from '../app/health.js';
 import { isReposConfig } from '../app/repos.js';
 import type { Repo, ReposConfig } from '../app/repos.js';
-
-export function writeSecureJson(filePath: string, data: unknown): void {
-  writeFileSync(filePath, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
-}
+import { writeSecureJson } from '../fs/secure-write.js';
 
 type AppState = { kind: 'running'; port: string } | { kind: 'installed' } | { kind: 'not-installed' };
 
