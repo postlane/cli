@@ -67,6 +67,20 @@ describe('CLI workflow files — action SHA consistency', () => {
     expect(setupNodeRefs.size, `Multiple setup-node SHAs found: ${[...setupNodeRefs].join(', ')}`).toBe(1);
   });
 
+  it('release.yml smoke check uses retry logic, not a bare sleep', () => {
+    // npm CDN propagation takes 30–120 seconds. A bare `sleep 10` resolves stale
+    // cached versions that report the previous release as the new one. The smoke check
+    // must retry with adequate delay between attempts so a genuinely broken publish
+    // is caught rather than masked by a CDN cache hit on the previous release.
+    const releasePath = join(WORKFLOWS_DIR, 'release.yml');
+    const content = readFileSync(releasePath, 'utf-8');
+    const smokeSection = content.slice(content.indexOf('Post-publish smoke check'));
+    expect(smokeSection, 'smoke check must have a retry loop (for/while)').toMatch(/\bfor\b|\bwhile\b/);
+    // Check command lines only (not comments) for a bare `sleep 10`
+    const smokeCommandLines = smokeSection.split('\n').filter((l) => !l.trim().startsWith('#'));
+    expect(smokeCommandLines.join('\n'), 'smoke check command must not contain bare sleep 10').not.toContain('sleep 10');
+  });
+
   it('release.yml has a post-publish smoke step that installs and invokes the published package', () => {
     // The semantic-release back-commit uses [skip ci] — the published artefact is never
     // smoke-tested by the main CI run. A post-publish step validates the npm artefact directly.
@@ -91,6 +105,20 @@ describe('CLI workflow files — action SHA consistency', () => {
     const ciPath = join(WORKFLOWS_DIR, 'ci.yml');
     const content = readFileSync(ciPath, 'utf-8');
     expect(content).toContain('macos-latest');
+  });
+
+  it('ci.yml license-checker allowlist does not permit copyleft licenses (LGPL, MPL)', () => {
+    // LGPL-3.0-or-later requires end users to be able to replace and relink the library —
+    // impossible in a statically-bundled npm CLI. MPL-2.0 requires disclosure of modified
+    // source files. Neither obligation can be satisfied by the current bundled distribution
+    // format. Neither license is used by any current production dependency; the allowlist
+    // must not open the door for future accidental inclusion.
+    const ciPath = join(WORKFLOWS_DIR, 'ci.yml');
+    const content = readFileSync(ciPath, 'utf-8');
+    const licenseCheckLine = content.split('\n').find((l) => l.includes('license-checker') && l.includes('onlyAllow'));
+    expect(licenseCheckLine, 'license-checker --onlyAllow line not found in ci.yml').toBeTruthy();
+    expect(licenseCheckLine, 'LGPL must not be in the production allowlist').not.toContain('LGPL');
+    expect(licenseCheckLine, 'MPL-2.0 must not be in the production allowlist').not.toContain('MPL-2.0');
   });
 
   it('comments reference v4, not v6 (v6 does not exist)', () => {

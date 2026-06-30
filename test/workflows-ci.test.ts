@@ -56,13 +56,18 @@ describe('cli workflow files — license-checker correctness', () => {
     expect(checkerLine, 'license-checker has || echo fallback — remove it so GPL detections fail CI').not.toContain('|| echo');
   });
 
-  it('ci.yml license-checker allows MPL-2.0, MIT-0, LGPL-3.0-or-later', () => {
+  it('ci.yml license-checker allows MIT-0 but not LGPL or MPL', () => {
+    // MIT-0 (No Attribution) is a permissive public-domain-equivalent; allowed.
+    // LGPL-3.0-or-later and MPL-2.0 are copyleft licenses whose obligations cannot
+    // be discharged by a statically-bundled npm CLI — they must never appear in
+    // production dependencies. The original justifications (lightningcss/@tailwindcss,
+    // next/sharp) referenced web-repo deps that are not in this package at all.
     const content = readWorkflow('ci.yml');
     const checkerLine = content.split('\n').find((l) => l.includes('license-checker') && l.includes('--onlyAllow'));
     expect(checkerLine, 'license-checker --onlyAllow line not found in ci.yml').toBeDefined();
-    expect(checkerLine, 'MPL-2.0 must be allowed (lightningcss via @tailwindcss/postcss)').toContain('MPL-2.0');
-    expect(checkerLine, 'MIT-0 must be allowed (@csstools packages)').toContain('MIT-0');
-    expect(checkerLine, 'LGPL-3.0-or-later must be allowed (next/sharp/libvips chain)').toContain('LGPL-3.0-or-later');
+    expect(checkerLine, 'MIT-0 must be allowed (@csstools and similar permissive packages)').toContain('MIT-0');
+    expect(checkerLine, 'LGPL-3.0-or-later must NOT be in the allowlist').not.toContain('LGPL-3.0-or-later');
+    expect(checkerLine, 'MPL-2.0 must NOT be in the allowlist').not.toContain('MPL-2.0');
   });
 });
 

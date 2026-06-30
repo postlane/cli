@@ -40,6 +40,22 @@ describe('.github/workflows/token-rotation-reminder.yml', () => {
     expect(content).toContain('gh issue create');
   });
 
+  it('creates labels with separate gh label create steps before creating the issue', () => {
+    // gh issue create --label "ops,token-rotation" creates a single label with a literal comma
+    // (on some gh CLI versions) or fails with 422 if neither label exists in the repo.
+    // The correct pattern: create labels explicitly, then reference each with a separate --label flag.
+    const content = readFileSync(workflowPath, 'utf-8');
+    expect(content, 'must create labels before the issue to avoid 422 on missing labels').toContain('gh label create');
+  });
+
+  it('gh issue create uses separate --label flags, not a single comma-separated label string', () => {
+    // --label "ops,token-rotation" is interpreted as one label whose name contains a comma
+    // on some gh CLI versions. The correct form is two separate --label flags.
+    const content = readFileSync(workflowPath, 'utf-8');
+    // The create command must NOT use --label "ops,token-rotation" (comma inside quotes)
+    expect(content, 'must not use comma-separated --label string').not.toMatch(/--label\s+"[^"]+,[^"]+"/);
+  });
+
   it('references docs/token-rotation.md as the source of rotation dates', () => {
     const content = readFileSync(workflowPath, 'utf-8');
     expect(content).toContain('docs/token-rotation.md');

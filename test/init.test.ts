@@ -169,13 +169,83 @@ describe('--no-attribution flag', () => {
 // ---------------------------------------------------------------------------
 
 describe('postlane init — forward reference', () => {
-  it('init.ts references setup-analytics forward reference text', async () => {
+  it('init.ts references docs/analytics forward reference (not the removed setup-analytics command)', async () => {
     const { readFileSync } = await import('fs');
     const { fileURLToPath } = await import('url');
     const { dirname, join } = await import('path');
     const __dirname = dirname(fileURLToPath(import.meta.url));
     const initSrc = readFileSync(join(__dirname, '../src/commands/init.ts'), 'utf8');
-    expect(initSrc).toMatch(/setup-analytics/);
+    expect(initSrc).toMatch(/postlane\.dev\/docs\/analytics/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fix 13 — printSetupHints must not advertise non-existent 'setup-analytics' command
+// ---------------------------------------------------------------------------
+
+describe('printSetupHints — analytics hint does not advertise non-existent command', () => {
+  it('does not advertise commands that do not exist in the CLI', async () => {
+    const { vi } = await import('vitest');
+    vi.resetModules();
+
+    vi.doMock('../src/init/questions.js', () => ({
+      askSetupQuestions: async () => ({
+        llmProvider: 'anthropic',
+        llmModel: 'claude-sonnet-4-6',
+        schedulerProvider: 'zernio',
+        schedulerApiKey: '',
+        repoType: 'open-source-library',
+        style: 'Direct.',
+        utmCampaign: '',
+        author: 'Test',
+      }),
+    }));
+    vi.doMock('../src/init/config_writer.js', () => ({
+      writeConfigFiles: () => {},
+      patchProjectId: () => {},
+      checkPartialInit: () => 'none',
+      repairPartialInit: () => {},
+      writeGitHubConfigFiles: () => {},
+    }));
+    vi.doMock('../src/commands/register.js', () => ({
+      registerCommand: async () => {},
+    }));
+    vi.doMock('../src/git/github_session.js', () => ({
+      readAppSessionInfo: () => null,
+      fetchGitHubProjectConfig: async () => null,
+    }));
+    vi.doMock('../src/git/provider.js', () => ({
+      detectGitProvider: () => 'other',
+      extractOrgLogin: () => null,
+    }));
+
+    const logMessages: string[] = [];
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logMessages.push(args.map(String).join(' '));
+    });
+
+    const tmpDir = join(tmpdir(), `postlane-hint-fix13-${Date.now()}`);
+    mkdirSync(join(tmpDir, '.git'), { recursive: true });
+    const origCwd = process.cwd();
+    process.chdir(tmpDir);
+
+    try {
+      const { setupInteractiveFlow } = await import('../src/commands/init.js');
+      await setupInteractiveFlow(tmpDir, true, false, undefined);
+    } finally {
+      consoleSpy.mockRestore();
+      process.chdir(origCwd);
+      rmSync(tmpDir, { recursive: true, force: true });
+      vi.doUnmock('../src/init/questions.js');
+      vi.doUnmock('../src/init/config_writer.js');
+      vi.doUnmock('../src/commands/register.js');
+      vi.doUnmock('../src/git/github_session.js');
+      vi.doUnmock('../src/git/provider.js');
+      vi.resetModules();
+    }
+
+    const combined = logMessages.join('\n');
+    expect(combined).not.toMatch(/`postlane setup-analytics`/);
   });
 });
 

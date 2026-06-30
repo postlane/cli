@@ -34,6 +34,20 @@ jobs:
           echo "last_rotation=$LAST_ROTATION" >> "$GITHUB_OUTPUT"
           echo "Tokens last rotated: $LAST_ROTATION — expire: $EXPIRY_DATE ($DAYS_LEFT days left)"
 
+      - name: Ensure reminder labels exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create labels idempotently — 2>/dev/null suppresses "already exists" errors.
+          gh label create "ops" \
+            --color "#0075ca" \
+            --description "Operational and infrastructure tasks" \
+            2>/dev/null || true
+          gh label create "token-rotation" \
+            --color "#e4e669" \
+            --description "Token rotation reminder" \
+            2>/dev/null || true
+
       - name: Open reminder issue if tokens expire within 14 days
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -46,9 +60,12 @@ jobs:
             exit 0
           fi
 
-          # Skip if a reminder issue is already open (avoid duplicates on weekly runs)
+          # Skip if a reminder issue is already open (avoid duplicates on weekly runs).
+          # Use separate --label flags: a single comma-separated string creates one label
+          # with a literal comma in its name on some gh CLI versions.
           EXISTING=$(gh issue list \
-            --label "ops,token-rotation" \
+            --label "ops" \
+            --label "token-rotation" \
             --state open \
             --json number \
             --jq '.[0].number // empty')
@@ -74,4 +91,5 @@ The CI smoke test tokens were last rotated on \`${LAST_ROTATION}\` and expire on
 See \`CONTRIBUTING.md\` → \"Token rotation procedure\" for full steps.
 
 If tokens have already expired and \`smoke.yml\` is failing with 401/403 errors, check the raw CI log for authentication errors before investigating the code." \
-            --label "ops,token-rotation"
+            --label "ops" \
+            --label "token-rotation"

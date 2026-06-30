@@ -424,11 +424,66 @@ describe('postlane doctor', () => {
   });
 });
 
+describe('doctorCommand — banner ordering', () => {
+  it('prints status banner before any check results in human mode', async () => {
+    vi.resetModules();
+
+    const callOrder: string[] = [];
+
+    vi.doMock('../src/app/health.js', async () => ({
+      isAppInstalled: () => { callOrder.push('isAppInstalled'); return false; },
+      isAppHealthy: async () => false,
+      isValidPort: (p: string) => /^\d{1,5}$/.test(p) && Number(p) >= 1 && Number(p) <= 65535,
+    }));
+
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      const msg = args.map(String).join(' ');
+      if (msg.includes('Running Postlane health checks')) {
+        callOrder.push('banner');
+      }
+    });
+
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
+
+    const { doctorCommand } = await import('../src/commands/doctor.js');
+    await doctorCommand({});
+
+    consoleSpy.mockRestore();
+    exitSpy.mockRestore();
+    vi.doUnmock('../src/app/health.js');
+    vi.resetModules();
+
+    const bannerIdx = callOrder.indexOf('banner');
+    const checkIdx = callOrder.indexOf('isAppInstalled');
+
+    expect(bannerIdx).toBeGreaterThanOrEqual(0);
+    expect(checkIdx).toBeGreaterThanOrEqual(0);
+    expect(bannerIdx).toBeLessThan(checkIdx);
+  });
+});
+
 describe('formatDoctorJson', () => {
   it('returns a valid JSON string', () => {
     const checks = [{ name: 'foo', description: 'Foo check', passed: true }];
     const result = formatDoctorJson(checks);
     expect(() => JSON.parse(result)).not.toThrow();
+  });
+
+  it('includes schema_version: 1 in output', () => {
+    const parsed = JSON.parse(formatDoctorJson([]));
+    expect(parsed.schema_version).toBe(1);
+  });
+
+  it('all_passed is false when all checks are skipped', () => {
+    const checks = [{ name: 'x', description: 'y', passed: false, status: 'skipped' as const }];
+    const parsed = JSON.parse(formatDoctorJson(checks));
+    expect(parsed.all_passed).toBe(false);
+  });
+
+  it('all_passed is true when at least one non-skipped check passed and none failed', () => {
+    const checks = [{ name: 'x', description: 'y', passed: true }];
+    const parsed = JSON.parse(formatDoctorJson(checks));
+    expect(parsed.all_passed).toBe(true);
   });
 
   it('JSON includes all_passed: true when all checks pass', () => {

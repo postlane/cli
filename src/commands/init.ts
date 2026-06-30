@@ -20,7 +20,7 @@ function printSetupHints(opts?: { includeSettingsHint?: boolean; includeAnalytic
   }
   console.log(chalk.gray('postlane.dev/docs/credentials'));
   if (opts?.includeAnalyticsHint) {
-    console.log(chalk.gray('\nRun `postlane setup-analytics` to enable conversion tracking on your site (requires v3).'));
+    console.log(chalk.gray('\nConversion tracking (coming soon) — see postlane.dev/docs/analytics.'));
   }
 }
 
