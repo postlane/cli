@@ -41,23 +41,10 @@ export interface ConfigLocalJson {
 }
 
 export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void {
-  if (!isAbsolute(targetDir)) {
-    throw new Error(`targetDir must be an absolute path, got: ${targetDir}`);
-  }
-
-  const postlaneDir = join(targetDir, '.postlane');
-
-  // Step 1: Create .postlane directory
-  mkdirSync(postlaneDir, { recursive: true });
-
-  // Step 2: Write config.json (shared, committed to git)
   const config: ConfigJson & { attribution?: boolean } = {
     version: 1,
     ...(answers.mastodonInstance ? { mastodon_instance: answers.mastodonInstance } : {}),
-    llm: {
-      provider: answers.llmProvider,
-      model: answers.llmModel,
-    },
+    llm: { provider: answers.llmProvider, model: answers.llmModel },
     repo_type: answers.repoType,
     style: answers.style,
     utm_campaign: answers.utmCampaign,
@@ -66,28 +53,8 @@ export function writeConfigFiles(targetDir: string, answers: SetupAnswers): void
     // Absence of the key means enabled (default).
     ...(answers.attribution === false && { attribution: false }),
   };
-
-  writeFileSync(
-    join(postlaneDir, 'config.json'),
-    JSON.stringify(config, null, 2),
-    'utf-8'
-  );
-
-  // Step 2b: Write config.local.json (per-user, git-ignored)
-  const localConfig: ConfigLocalJson = {
-    scheduler: {
-      provider: answers.schedulerProvider,
-    },
-  };
-
-  writeFileSync(
-    join(postlaneDir, 'config.local.json'),
-    JSON.stringify(localConfig, null, 2),
-    { encoding: 'utf-8', mode: 0o600 }
-  );
-
-  writePostlaneGitignore(postlaneDir);
-  copySkillFiles(targetDir, postlaneDir);
+  const localConfig: ConfigLocalJson = { scheduler: { provider: answers.schedulerProvider } };
+  writePostlaneScaffolding(targetDir, config, localConfig);
 }
 
 /// Writes config files for a GitHub App repo without interactive prompts.
@@ -98,13 +65,6 @@ export function writeGitHubConfigFiles(
   projectId: string,
   projectName: string,
 ): void {
-  if (!isAbsolute(targetDir)) {
-    throw new Error(`targetDir must be an absolute path, got: ${targetDir}`);
-  }
-
-  const postlaneDir = join(targetDir, '.postlane');
-  mkdirSync(postlaneDir, { recursive: true });
-
   const config = {
     version: 1,
     project_id: projectId,
@@ -114,12 +74,22 @@ export function writeGitHubConfigFiles(
     utm_campaign: '',
     author: projectName,
   };
-
-  writeFileSync(join(postlaneDir, 'config.json'), JSON.stringify(config, null, 2), 'utf-8');
-
   const localConfig: ConfigLocalJson = { scheduler: { provider: 'zernio' } };
-  writeFileSync(join(postlaneDir, 'config.local.json'), JSON.stringify(localConfig, null, 2), { encoding: 'utf-8', mode: 0o600 });
+  writePostlaneScaffolding(targetDir, config, localConfig);
+}
 
+function writePostlaneScaffolding<T extends object>(
+  targetDir: string,
+  config: T,
+  localConfig: ConfigLocalJson,
+): void {
+  if (!isAbsolute(targetDir)) {
+    throw new Error(`targetDir must be an absolute path, got: ${targetDir}`);
+  }
+  const postlaneDir = join(targetDir, '.postlane');
+  mkdirSync(postlaneDir, { recursive: true });
+  writeFileSync(join(postlaneDir, 'config.json'), JSON.stringify(config, null, 2), 'utf-8');
+  writeFileSync(join(postlaneDir, 'config.local.json'), JSON.stringify(localConfig, null, 2), { encoding: 'utf-8', mode: 0o600 });
   writePostlaneGitignore(postlaneDir);
   copySkillFiles(targetDir, postlaneDir);
 }
@@ -133,6 +103,17 @@ function writePostlaneGitignore(postlaneDir: string): void {
 }
 
 function copySkillFiles(targetDir: string, postlaneDir: string): void {
+  const cliDir = join(__dirname, '..', '..');
+  const { commandsDir: sourceCommandsDir } = resolveSkillsSource(cliDir);
+  copySkillManifest(targetDir, postlaneDir, sourceCommandsDir);
+}
+
+function copySkillManifest(
+  targetDir: string,
+  postlaneDir: string,
+  sourceDir: string,
+  opts?: { skipExisting?: boolean },
+): void {
   const claudeCommandsDir = join(targetDir, '.claude', 'commands');
   const postlaneCommandsDir = join(postlaneDir, 'commands');
   const promptsDir = join(postlaneDir, 'prompts');
@@ -144,20 +125,21 @@ function copySkillFiles(targetDir: string, postlaneDir: string): void {
   mkdirSync(runnerDir, { recursive: true });
 
   const cliDir = join(__dirname, '..', '..');
-  const { commandsDir: sourceCommandsDir } = resolveSkillsSource(cliDir);
   const bundledSkillsDir = join(cliDir, 'bundled-skills');
   const bundledRunnerDir = join(bundledSkillsDir, 'runner');
 
   const filesToCopy: Array<{ from: string; to: string }> = [
     ...ALL_SKILL_COMMANDS.flatMap((cmd) => [
-      { from: join(sourceCommandsDir, `${cmd}.md`), to: join(claudeCommandsDir, `${cmd}.md`) },
-      { from: join(sourceCommandsDir, `${cmd}.prompt`), to: join(postlaneCommandsDir, `${cmd}.prompt`) },
+      { from: join(sourceDir, `${cmd}.md`), to: join(claudeCommandsDir, `${cmd}.md`) },
+      { from: join(sourceDir, `${cmd}.prompt`), to: join(postlaneCommandsDir, `${cmd}.prompt`) },
     ]),
     { from: join(bundledSkillsDir, 'preview-template.html'), to: join(promptsDir, 'preview-template.html') },
     { from: join(bundledRunnerDir, 'run.ts'), to: join(runnerDir, 'run.ts') },
   ];
 
+  const skipExisting = opts?.skipExisting ?? false;
   for (const { from, to } of filesToCopy) {
+    if (skipExisting && existsSync(to)) continue;
     if (existsSync(from)) {
       copyFileSync(from, to);
     } else {
@@ -203,35 +185,7 @@ export function checkPartialInit(targetDir: string): 'complete' | 'partial' | 'n
 
 export function repairPartialInit(targetDir: string): void {
   const postlaneDir = join(targetDir, '.postlane');
-  const claudeCommandsDir = join(targetDir, '.claude', 'commands');
-  const postlaneCommandsDir = join(postlaneDir, 'commands');
-  const promptsDir = join(postlaneDir, 'prompts');
-  const runnerDir = join(postlaneDir, 'runner');
-
-  mkdirSync(claudeCommandsDir, { recursive: true });
-  mkdirSync(postlaneCommandsDir, { recursive: true });
-  mkdirSync(promptsDir, { recursive: true });
-  mkdirSync(runnerDir, { recursive: true });
-
   const cliDir = join(__dirname, '..', '..');
-  const bundledSkillsDir = join(cliDir, 'bundled-skills');
-  const bundledCommandsDir = join(bundledSkillsDir, 'commands');
-  const bundledRunnerDir = join(bundledSkillsDir, 'runner');
-
-  const repairFiles: Array<{ from: string; to: string }> = [
-    ...ALL_SKILL_COMMANDS.flatMap((cmd) => [
-      { from: join(bundledCommandsDir, `${cmd}.md`), to: join(claudeCommandsDir, `${cmd}.md`) },
-      { from: join(bundledCommandsDir, `${cmd}.prompt`), to: join(postlaneCommandsDir, `${cmd}.prompt`) },
-    ]),
-    { from: join(bundledSkillsDir, 'preview-template.html'), to: join(promptsDir, 'preview-template.html') },
-    { from: join(bundledRunnerDir, 'run.ts'), to: join(runnerDir, 'run.ts') },
-  ];
-
-  for (const { from, to } of repairFiles) {
-    if (existsSync(from) && !existsSync(to)) {
-      copyFileSync(from, to);
-    } else if (!existsSync(to)) {
-      writeFileSync(to, `<!-- Placeholder for ${from} -->\n`, 'utf-8');
-    }
-  }
+  const bundledCommandsDir = join(cliDir, 'bundled-skills', 'commands');
+  copySkillManifest(targetDir, postlaneDir, bundledCommandsDir, { skipExisting: true });
 }

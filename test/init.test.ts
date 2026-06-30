@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync, rmSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { writeConfigFiles, validatePlatforms, patchProjectId, writeGitHubConfigFiles } from '../src/init/config_writer.js';
+import { writeConfigFiles, validatePlatforms, patchProjectId, writeGitHubConfigFiles, repairPartialInit } from '../src/init/config_writer.js';
 
 // All 9 v1.1 commands (§7.6.1 requires 18 files = 9 × 2)
 const V1_1_COMMANDS = [
@@ -623,5 +623,53 @@ describe('askSetupQuestions — no platforms in answers (derived-platforms model
     const { askSetupQuestions } = await import('../src/init/questions.js');
     const answers = await askSetupQuestions(true);
     expect(Object.keys(answers)).not.toContain('platforms');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// repairPartialInit — copies missing skill files, skips existing ones
+// ---------------------------------------------------------------------------
+
+describe('repairPartialInit', () => {
+  let repoDir: string;
+
+  beforeEach(() => {
+    repoDir = makeTmpRepo();
+  });
+
+  afterEach(() => {
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it('copies skill .md files to .claude/commands/ when they are missing', () => {
+    repairPartialInit(repoDir);
+    const draftPost = join(repoDir, '.claude', 'commands', 'draft-post.md');
+    expect(existsSync(draftPost)).toBe(true);
+  });
+
+  it('copies skill .prompt files to .postlane/commands/ when they are missing', () => {
+    repairPartialInit(repoDir);
+    const draftPostPrompt = join(repoDir, '.postlane', 'commands', 'draft-post.prompt');
+    expect(existsSync(draftPostPrompt)).toBe(true);
+  });
+
+  it('does not overwrite an existing skill file', () => {
+    repairPartialInit(repoDir);
+    const mdPath = join(repoDir, '.claude', 'commands', 'draft-post.md');
+    writeFileSync(mdPath, 'CUSTOM CONTENT');
+    repairPartialInit(repoDir);
+    expect(readFileSync(mdPath, 'utf-8')).toBe('CUSTOM CONTENT');
+  });
+
+  it('copies preview-template.html to .postlane/prompts/ when missing', () => {
+    repairPartialInit(repoDir);
+    const templatePath = join(repoDir, '.postlane', 'prompts', 'preview-template.html');
+    expect(existsSync(templatePath)).toBe(true);
+  });
+
+  it('copies run.ts to .postlane/runner/ when missing', () => {
+    repairPartialInit(repoDir);
+    const runnerPath = join(repoDir, '.postlane', 'runner', 'run.ts');
+    expect(existsSync(runnerPath)).toBe(true);
   });
 });
