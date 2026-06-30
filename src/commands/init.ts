@@ -20,7 +20,7 @@ function printSetupHints(opts?: { includeSettingsHint?: boolean; includeAnalytic
   }
   console.log(chalk.gray('postlane.dev/docs/credentials'));
   if (opts?.includeAnalyticsHint) {
-    console.log(chalk.gray('\nConversion tracking (coming soon) — see postlane.dev/docs/analytics.'));
+    console.log(chalk.gray('\nConversion tracking coming soon. See postlane.dev/docs/analytics.'));
   }
 }
 
@@ -28,7 +28,7 @@ interface InitOptions {
   defaults?: boolean;
   noAttribution?: boolean;
   workspace?: string | boolean;
-  /** Override the ~/.postlane directory — used in tests to isolate from the real session. */
+  /** Override the ~/.postlane directory (used in tests to isolate from the real session). */
   postlaneDir?: string;
 }
 
@@ -156,7 +156,7 @@ export async function setupInteractiveFlow(
   const answers = await askSetupQuestions(useDefaults, noAttribution);
   writeConfigFiles(targetDir, answers);
 
-  // Stamp project_id from the running desktop app when available — GitHub only.
+  // Stamp project_id from the running desktop app when available (GitHub only).
   if (provider === 'github') {
     const session = readAppSessionInfo();
     if (session) {

@@ -474,10 +474,31 @@ describe('formatDoctorJson', () => {
     expect(parsed.schema_version).toBe(1);
   });
 
-  it('all_passed is false when all checks are skipped', () => {
+  it('all_passed is null when all checks are skipped (indeterminate)', () => {
     const checks = [{ name: 'x', description: 'y', passed: false, status: 'skipped' as const }];
     const parsed = JSON.parse(formatDoctorJson(checks));
-    expect(parsed.all_passed).toBe(false);
+    expect(parsed.all_passed).toBeNull();
+  });
+
+  it('all_passed is null when checks array is empty', () => {
+    const parsed = JSON.parse(formatDoctorJson([]));
+    expect(parsed.all_passed).toBeNull();
+  });
+
+  it('checks_ran is 0 when all checks are skipped', () => {
+    const checks = [{ name: 'x', description: 'y', passed: false, status: 'skipped' as const }];
+    const parsed = JSON.parse(formatDoctorJson(checks));
+    expect(parsed.checks_ran).toBe(0);
+  });
+
+  it('checks_ran equals the number of non-skipped checks', () => {
+    const checks = [
+      { name: 'a', description: 'A', passed: true },
+      { name: 'b', description: 'B', passed: false },
+      { name: 'c', description: 'C', passed: false, status: 'skipped' as const },
+    ];
+    const parsed = JSON.parse(formatDoctorJson(checks));
+    expect(parsed.checks_ran).toBe(2);
   });
 
   it('all_passed is true when at least one non-skipped check passed and none failed', () => {

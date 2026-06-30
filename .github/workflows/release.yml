@@ -84,8 +84,10 @@ jobs:
               echo "Smoke check passed on attempt $i"
               exit 0
             fi
-            echo "Attempt $i failed — waiting 30s for npm CDN propagation..."
-            sleep 30
+            if [ "$i" -lt 5 ]; then
+              echo "Attempt $i failed -- waiting 30s for npm CDN propagation..."
+              sleep 30
+            fi
           done
-          echo "ERROR: smoke check failed after 5 attempts (150s wait)"
+          echo "ERROR: smoke check failed after 5 attempts (120s wait)"
           exit 1

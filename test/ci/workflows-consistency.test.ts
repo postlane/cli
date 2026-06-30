@@ -67,6 +67,16 @@ describe('CLI workflow files — action SHA consistency', () => {
     expect(setupNodeRefs.size, `Multiple setup-node SHAs found: ${[...setupNodeRefs].join(', ')}`).toBe(1);
   });
 
+  it('release.yml smoke check does not sleep unconditionally on the last attempt', () => {
+    const releasePath = join(WORKFLOWS_DIR, 'release.yml');
+    const content = readFileSync(releasePath, 'utf-8');
+    const smokeSection = content.slice(content.indexOf('Post-publish smoke check'));
+    // sleep must be guarded so it does not run after the final failed attempt
+    expect(smokeSection, 'sleep must be guarded with an iteration check').toMatch(
+      /\[\s*"\$i"\s*-lt\s+5\s*\]\s*&&\s*sleep|if\s*\[\s*"\$i"\s*-lt\s+5/
+    );
+  });
+
   it('release.yml smoke check uses retry logic, not a bare sleep', () => {
     // npm CDN propagation takes 30–120 seconds. A bare `sleep 10` resolves stale
     // cached versions that report the previous release as the new one. The smoke check

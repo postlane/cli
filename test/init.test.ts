@@ -169,6 +169,15 @@ describe('--no-attribution flag', () => {
 // ---------------------------------------------------------------------------
 
 describe('postlane init — forward reference', () => {
+  it('analytics hint does not contain an em dash', async () => {
+    const { readFileSync } = await import('fs');
+    const { fileURLToPath } = await import('url');
+    const { dirname, join } = await import('path');
+    const __dirname2 = dirname(fileURLToPath(import.meta.url));
+    const initSrc = readFileSync(join(__dirname2, '../src/commands/init.ts'), 'utf8');
+    expect(initSrc).not.toContain('—');
+  });
+
   it('init.ts references docs/analytics forward reference (not the removed setup-analytics command)', async () => {
     const { readFileSync } = await import('fs');
     const { fileURLToPath } = await import('url');
