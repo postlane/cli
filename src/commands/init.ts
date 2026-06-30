@@ -12,6 +12,18 @@ import { fetchGitHubProjectConfig, readAppSessionInfo } from '../git/github_sess
 import { registerCommand } from './register.js';
 import { workspaceInitCommand } from './workspace_init.js';
 
+/// Prints the post-setup "next steps" hints. Shared across all init completion paths.
+function printSetupHints(opts?: { includeSettingsHint?: boolean; includeAnalyticsHint?: boolean }): void {
+  console.log(chalk.gray('\nInvoke /draft-post in your IDE to draft your first post.'));
+  if (opts?.includeSettingsHint) {
+    console.log(chalk.gray(`API keys go in Postlane's Settings panel, not config.json.`));
+  }
+  console.log(chalk.gray('postlane.dev/docs/credentials'));
+  if (opts?.includeAnalyticsHint) {
+    console.log(chalk.gray('\nRun `postlane setup-analytics` to enable conversion tracking on your site (requires v3).'));
+  }
+}
+
 interface InitOptions {
   defaults?: boolean;
   noAttribution?: boolean;
@@ -103,9 +115,7 @@ export async function handleExistingConfig(
     console.log(chalk.blue('\nCompleting partial setup...'));
     repairPartialInit(targetDir);
     console.log(chalk.green('✓ Setup completed!'));
-    console.log(chalk.gray('Invoke /draft-post in your IDE to draft your first post.'));
-    console.log(chalk.gray(`API keys go in Postlane's Settings panel, not config.json.`));
-    console.log(chalk.gray('postlane.dev/docs/credentials'));
+    printSetupHints({ includeSettingsHint: true });
     return 'done';
   }
   return 'continue';
@@ -133,8 +143,7 @@ export async function setupGitHubFlow(targetDir: string): Promise<void> {
   console.log(chalk.green('\n✓ Setup complete!'));
   console.log(chalk.blue('\nRegistering with Postlane app...'));
   await registerCommand();
-  console.log(chalk.gray('\nInvoke /draft-post in your IDE to draft your first post.'));
-  console.log(chalk.gray('postlane.dev/docs/credentials'));
+  printSetupHints();
 }
 
 /// Runs the interactive setup flow for GitLab and other non-GitHub providers.
@@ -165,10 +174,7 @@ export async function setupInteractiveFlow(
   console.log(chalk.green('\n✓ Setup complete!'));
   console.log(chalk.blue('\nRegistering with Postlane app...'));
   await registerCommand();
-  console.log(chalk.gray('\nInvoke /draft-post in your IDE to draft your first post.'));
-  console.log(chalk.gray(`API keys go in Postlane's Settings panel, not config.json.`));
-  console.log(chalk.gray('postlane.dev/docs/credentials'));
-  console.log(chalk.gray('\nRun `postlane setup-analytics` to enable conversion tracking on your site (requires v3).'));
+  printSetupHints({ includeSettingsHint: true, includeAnalyticsHint: true });
 }
 
 export async function initCommand(options: InitOptions) {

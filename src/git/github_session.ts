@@ -3,6 +3,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import { readPortFile } from '../app/session.js';
 
 function isGitHubProjectConfig(val: unknown): val is GitHubProjectConfig {
   if (typeof val !== 'object' || val === null) return false;
@@ -28,14 +29,11 @@ export interface AppSessionInfo {
 /// Returns null when either file is absent or contains an invalid value.
 export function readAppSessionInfo(): AppSessionInfo | null {
   const postlaneDir = join(homedir(), '.postlane');
-  const portPath = join(postlaneDir, 'port');
   const tokenPath = join(postlaneDir, 'session.token');
 
-  if (!existsSync(portPath) || !existsSync(tokenPath)) return null;
-
-  const portStr = readFileSync(portPath, 'utf-8').trim();
-  const port = Number(portStr);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
+  if (!existsSync(tokenPath)) return null;
+  const port = readPortFile(postlaneDir);
+  if (port === null) return null;
 
   const token = readFileSync(tokenPath, 'utf-8').trim();
   if (!token) return null;
