@@ -5,7 +5,7 @@ import { execFileSync } from 'child_process';
 import { homedir } from 'os';
 import { join } from 'path';
 import chalk from 'chalk';
-import { KNOWN_INSTALL_PATHS, isAppHealthy } from '../app/health.js';
+import { isAppInstalled, isAppHealthy } from '../app/health.js';
 import { isReposConfig } from '../app/repos.js';
 import { SKILL_FILE_NAMES } from '../app/skill_manifest.js';
 
@@ -32,8 +32,7 @@ export function checkConfig(targetDir: string): Check {
 }
 
 export function checkAppInstalled(): Check {
-  const paths = KNOWN_INSTALL_PATHS[process.platform] ?? [];
-  const appInstalled = paths.some(p => existsSync(p));
+  const appInstalled = isAppInstalled();
   return {
     name: 'app-installed',
     description: 'Postlane app installed',

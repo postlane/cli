@@ -5,6 +5,7 @@ import { join, resolve, basename, isAbsolute } from 'path';
 import chalk from 'chalk';
 import { randomUUID } from 'crypto';
 import type { WorkspaceEntry } from '../app/workspace_repos.js';
+import { readPortFile } from '../app/session.js';
 import {
   writeWorkspaceConfigJson,
   writeWorkspaceLocalConfig,
@@ -35,12 +36,7 @@ export function readWorkspaceSession(postlaneDir: string): SessionInfo | null {
   const token = readFileSync(tokenPath, 'utf-8').trim();
   if (!token) return null;
 
-  const portPath = join(postlaneDir, 'port');
-  if (!existsSync(portPath)) return { port: null, token };
-  const portStr = readFileSync(portPath, 'utf-8').trim();
-  const port = Number(portStr);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) return { port: null, token };
-  return { port, token };
+  return { port: readPortFile(postlaneDir), token };
 }
 
 // ── Project ID fetch ──────────────────────────────────────────────────────────
