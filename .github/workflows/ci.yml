@@ -49,4 +49,9 @@ jobs:
         run: npm install -g license-checker
 
       - name: Check licenses
-        run: license-checker --production --onlyAllow "MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;MIT-0;MPL-2.0;LGPL-3.0-or-later;CC0-1.0;Unlicense;Python-2.0;BlueOak-1.0.0;CC-BY-3.0;CC-BY-4.0" --excludePackages "$(node -p "require('./package.json').name + '@' + require('./package.json').version")"
+        # LGPL-3.0-or-later and MPL-2.0 are intentionally excluded: a statically-bundled
+        # npm CLI cannot discharge the LGPL relinking obligation, and MPL-2.0 requires
+        # source disclosure for modified files. Neither license is used by any current
+        # production dependency. If a future dep requires these licences, seek legal review
+        # before adding them to this allowlist.
+        run: license-checker --production --onlyAllow "MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;MIT-0;CC0-1.0;Unlicense;Python-2.0;BlueOak-1.0.0;CC-BY-3.0;CC-BY-4.0" --excludePackages "$(node -p "require('./package.json').name + '@' + require('./package.json').version")"

@@ -73,10 +73,19 @@ jobs:
         # tested by the main CI run. This step installs the just-published package from npm
         # and verifies it boots correctly, catching packaging or build-step regressions.
         # Only runs on a push to main or beta (not on chore: commits that produce no release).
+        # Retries with 30-second delays: npm CDN propagation typically takes 30–120 seconds,
+        # so a bare `sleep 10` races the cache and may install the previous version silently.
         if: github.ref_name == 'main' || github.ref_name == 'beta'
         run: |
           DIST_TAG="${{ github.ref_name == 'main' && 'latest' || 'beta' }}"
-          # Allow npm registry a few seconds to propagate the new version
-          sleep 10
-          # Install and invoke — exits non-zero if the package is broken or unpublished
-          npx --yes @postlane/cli@"${DIST_TAG}" --version
+          for i in 1 2 3 4 5; do
+            echo "Smoke check attempt $i/5..."
+            if npx --yes @postlane/cli@"${DIST_TAG}" --version; then
+              echo "Smoke check passed on attempt $i"
+              exit 0
+            fi
+            echo "Attempt $i failed — waiting 30s for npm CDN propagation..."
+            sleep 30
+          done
+          echo "ERROR: smoke check failed after 5 attempts (150s wait)"
+          exit 1

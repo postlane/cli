@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -54,5 +54,37 @@ describe('readPortFile', () => {
   it('returns 65535 for the maximum valid port', () => {
     writeFileSync(join(dir, 'port'), '65535');
     expect(readPortFile(dir)).toBe(65535);
+  });
+
+  it('returns null without throwing when port file is deleted after existsSync check (TOCTOU)', async () => {
+    vi.resetModules();
+
+    vi.doMock('fs', async () => {
+      const actual = await vi.importActual<typeof import('fs')>('fs');
+      return {
+        ...actual,
+        existsSync: () => true,
+        readFileSync: () => {
+          const err = Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' });
+          throw err;
+        },
+      };
+    });
+
+    const { readPortFile: freshReadPortFile } = await import('../src/app/session.js');
+
+    let result: number | null = null;
+    let threw = false;
+    try {
+      result = freshReadPortFile('/any/dir');
+    } catch {
+      threw = true;
+    }
+
+    vi.doUnmock('fs');
+    vi.resetModules();
+
+    expect(threw).toBe(false);
+    expect(result).toBeNull();
   });
 });
