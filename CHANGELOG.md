@@ -1,3 +1,10 @@
+# [0.5.0-beta.4](https://github.com/postlane/cli/compare/v0.5.0-beta.3...v0.5.0-beta.4) (2026-06-30)
+
+
+### Bug Fixes
+
+* **review:** null all_passed for zero checks, port validation, em dashes, workflow hardening ([#51](https://github.com/postlane/cli/issues/51)) ([936dd9b](https://github.com/postlane/cli/commit/936dd9babb2682738c6f7f6e77bc8093e5bd9821))
+
 # [0.5.0-beta.3](https://github.com/postlane/cli/compare/v0.5.0-beta.2...v0.5.0-beta.3) (2026-06-29)
 
 
